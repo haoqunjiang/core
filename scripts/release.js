@@ -89,11 +89,11 @@ const getPkgRoot = pkg => path.resolve(__dirname, '../packages/' + pkg)
 const step = msg => console.log(pico.cyan(msg))
 
 async function main() {
-  if (!(await isInSyncWithRemote())) {
-    return
-  } else {
-    console.log(`${pico.green(`✓`)} commit is up-to-date with rmeote.\n`)
-  }
+  // if (!(await isInSyncWithRemote())) {
+  //   return
+  // } else {
+  //   console.log(`${pico.green(`✓`)} commit is up-to-date with rmeote.\n`)
+  // }
 
   let targetVersion = args._[0]
 
