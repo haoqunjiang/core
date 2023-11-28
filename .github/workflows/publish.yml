@@ -31,7 +31,7 @@ on:
 jobs:
   publish:
     # prevents this action from running on forks
-    if: github.repository == 'vuejs/core'
+    if: github.repository == 'sodatea/core'
     runs-on: ubuntu-latest
     permissions:
       contents: write
