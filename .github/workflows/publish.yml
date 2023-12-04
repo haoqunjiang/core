@@ -63,7 +63,7 @@ jobs:
 
 
       - name: Release
-        run: pnpm version ${{ inputs.bump != 'custom' && inputs.bump || inputs.custom_version }}
+        run: pnpm version --no-commit-hooks ${{ inputs.bump != 'custom' && inputs.bump || inputs.custom_version }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
