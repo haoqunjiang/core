@@ -63,7 +63,7 @@ jobs:
 
 
       - name: Release
-        run: pnpm release ${{ inputs.bump != 'custom' && inputs.bump || inputs.custom_version }} --skip-prompts --dry
+        run: pnpm version ${{ inputs.bump != 'custom' && inputs.bump || inputs.custom_version }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
