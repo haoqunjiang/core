@@ -3,10 +3,15 @@ export const version: string = __VERSION__
 // API
 export { parse } from './parse'
 export { compileTemplate } from './compileTemplate'
-export { compileStyle, compileStyleAsync } from './compileStyle'
+export {
+  compileStyle,
+  compileStyleAsync,
+  compileStyleWithLightningCss,
+} from './compileStyle'
 export { compileScript } from './compileScript'
 export { rewriteDefault, rewriteDefaultAST } from './rewriteDefault'
 export { resolveTypeElements, inferRuntimeType } from './script/resolveType'
+export { createStyleLightningCSSVisitor } from './style/lightningcss'
 
 import { type SFCParseResult, parseCache as _parseCache } from './parse'
 // #9521 export parseCache as a simple map to avoid exposing LRU types
@@ -66,6 +71,10 @@ export type {
 } from './compileStyle'
 export type { SFCScriptCompileOptions } from './compileScript'
 export type { ScriptCompileContext } from './script/context'
+export type {
+  SFCStyleLightningCSSOptions,
+  SFCStyleLightningCSSVisitor,
+} from './style/lightningcss'
 export type {
   TypeResolveContext,
   SimpleTypeResolveOptions,

@@ -33,7 +33,7 @@ export function genCssVarsFromList(
     .join(',\n  ')}\n}`
 }
 
-function genVarName(
+export function genVarName(
   id: string,
   raw: string,
   isProd: boolean,
@@ -50,7 +50,15 @@ function genVarName(
   }
 }
 
-function normalizeExpression(exp: string) {
+export function genCssVarReference(
+  id: string,
+  raw: string,
+  isProd: boolean,
+): string {
+  return `var(--${genVarName(id, normalizeCssVarExpression(raw), isProd)})`
+}
+
+export function normalizeCssVarExpression(exp: string): string {
   exp = exp.trim()
   if (
     (exp[0] === `'` && exp[exp.length - 1] === `'`) ||
@@ -66,6 +74,7 @@ const vBindRE = /v-bind\s*\(/g
 export function parseCssVars(sfc: SFCDescriptor): string[] {
   const vars: string[] = []
   sfc.styles.forEach(style => {
+    vBindRE.lastIndex = 0
     let match
     // ignore v-bind() in comments, eg /* ... */
     // and // (Less, Sass and Stylus all support the use of // to comment)
@@ -74,7 +83,7 @@ export function parseCssVars(sfc: SFCDescriptor): string[] {
       const start = match.index + match[0].length
       const end = lexBinding(content, start)
       if (end !== null) {
-        const variable = normalizeExpression(content.slice(start, end))
+        const variable = normalizeCssVarExpression(content.slice(start, end))
         if (!vars.includes(variable)) {
           vars.push(variable)
         }
@@ -127,6 +136,33 @@ function lexBinding(content: string, start: number): number | null {
   return null
 }
 
+export function rewriteCssVars(
+  value: string,
+  id: string,
+  isProd: boolean,
+): string {
+  vBindRE.lastIndex = 0
+  if (!vBindRE.test(value)) {
+    return value
+  }
+
+  vBindRE.lastIndex = 0
+  let transformed = ''
+  let lastIndex = 0
+  let match
+  while ((match = vBindRE.exec(value))) {
+    const start = match.index + match[0].length
+    const end = lexBinding(value, start)
+    if (end !== null) {
+      transformed +=
+        value.slice(lastIndex, match.index) +
+        genCssVarReference(id, value.slice(start, end), isProd)
+      lastIndex = end + 1
+    }
+  }
+  return transformed + value.slice(lastIndex)
+}
+
 // for compileStyle
 export interface CssVarsPluginOptions {
   id: string
@@ -138,26 +174,7 @@ export const cssVarsPlugin: PluginCreator<CssVarsPluginOptions> = opts => {
   return {
     postcssPlugin: 'vue-sfc-vars',
     Declaration(decl) {
-      // rewrite CSS variables
-      const value = decl.value
-      if (vBindRE.test(value)) {
-        vBindRE.lastIndex = 0
-        let transformed = ''
-        let lastIndex = 0
-        let match
-        while ((match = vBindRE.exec(value))) {
-          const start = match.index + match[0].length
-          const end = lexBinding(value, start)
-          if (end !== null) {
-            const variable = normalizeExpression(value.slice(start, end))
-            transformed +=
-              value.slice(lastIndex, match.index) +
-              `var(--${genVarName(id, variable, isProd)})`
-            lastIndex = end + 1
-          }
-        }
-        decl.value = transformed + value.slice(lastIndex)
-      }
+      decl.value = rewriteCssVars(decl.value, id, isProd)
     },
   }
 }
