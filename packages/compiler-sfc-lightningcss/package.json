@@ -1,0 +1,62 @@
+{
+  "name": "@vue/compiler-sfc-lightningcss",
+  "version": "3.5.32",
+  "description": "Compiler-SFC-compatible module with a Lightning CSS-backed style compiler",
+  "main": "dist/compiler-sfc-lightningcss.cjs.js",
+  "module": "dist/compiler-sfc-lightningcss.esm-bundler.js",
+  "types": "dist/compiler-sfc-lightningcss.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/compiler-sfc-lightningcss.d.ts",
+      "node": "./dist/compiler-sfc-lightningcss.cjs.js",
+      "module": "./dist/compiler-sfc-lightningcss.esm-bundler.js",
+      "import": "./dist/compiler-sfc-lightningcss.esm-bundler.js",
+      "require": "./dist/compiler-sfc-lightningcss.cjs.js"
+    },
+    "./*": "./*"
+  },
+  "sideEffects": false,
+  "buildOptions": {
+    "name": "VueCompilerSFCLightningCss",
+    "formats": [
+      "esm-bundler",
+      "cjs"
+    ],
+    "prod": false,
+    "enableNonBrowserBranches": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/core.git",
+    "directory": "packages/compiler-sfc-lightningcss"
+  },
+  "keywords": [
+    "vue",
+    "compiler-sfc",
+    "lightningcss"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/core/issues"
+  },
+  "homepage": "https://github.com/vuejs/core/tree/main/packages/compiler-sfc-lightningcss#readme",
+  "dependencies": {
+    "@vue/compiler-core": "workspace:*",
+    "@vue/compiler-sfc": "workspace:*",
+    "@vue/lightningcss-lexer": "workspace:*",
+    "@vue/shared": "workspace:*",
+    "hash-sum": "^2.0.0",
+    "magic-string": "catalog:",
+    "merge-source-map": "^1.1.0"
+  },
+  "peerDependencies": {
+    "lightningcss": "^1.32.0"
+  },
+  "devDependencies": {
+    "lightningcss": "^1.32.0"
+  }
+}

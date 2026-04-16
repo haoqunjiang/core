@@ -295,6 +295,9 @@ importers:
       '@vue/compiler-ssr':
         specifier: workspace:*
         version: link:../compiler-ssr
+      '@vue/lightningcss-lexer':
+        specifier: workspace:*
+        version: link:../lightningcss-lexer
       '@vue/shared':
         specifier: workspace:*
         version: link:../shared
@@ -345,6 +348,34 @@ importers:
         specifier: ^1.99.0
         version: 1.99.0
 
+  packages/compiler-sfc-lightningcss:
+    dependencies:
+      '@vue/compiler-core':
+        specifier: workspace:*
+        version: link:../compiler-core
+      '@vue/compiler-sfc':
+        specifier: workspace:*
+        version: link:../compiler-sfc
+      '@vue/lightningcss-lexer':
+        specifier: workspace:*
+        version: link:../lightningcss-lexer
+      '@vue/shared':
+        specifier: workspace:*
+        version: link:../shared
+      hash-sum:
+        specifier: ^2.0.0
+        version: 2.0.0
+      magic-string:
+        specifier: 'catalog:'
+        version: 0.30.21
+      merge-source-map:
+        specifier: ^1.1.0
+        version: 1.1.0
+    devDependencies:
+      lightningcss:
+        specifier: ^1.32.0
+        version: 1.32.0
+
   packages/compiler-ssr:
     dependencies:
       '@vue/compiler-dom':
@@ -353,6 +384,12 @@ importers:
       '@vue/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/lightningcss-lexer:
+    devDependencies:
+      lightningcss:
+        specifier: ^1.32.0
+        version: 1.32.0
 
   packages/reactivity:
     dependencies:

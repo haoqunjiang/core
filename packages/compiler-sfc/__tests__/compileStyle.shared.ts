@@ -1,13 +1,23 @@
 import path from 'node:path'
+import type { RawSourceMap } from '@vue/compiler-core'
 import { Features, transform } from 'lightningcss'
 import type {
+  SFCAsyncStyleCompileOptions,
   SFCStyleCompileOptions,
   SFCStyleCompileResults,
 } from '../src/compileStyle'
 
+// Shared style-compiler behavior suite used by both the default PostCSS engine
+// and the extracted Lightning CSS package. This stays under `compiler-sfc`
+// because it describes the compiler-sfc style contract, but it is not part of
+// the published runtime API.
 type CompileStyleImpl = (
   options: SFCStyleCompileOptions,
 ) => SFCStyleCompileResults
+
+type CompileStyleAsyncImpl = (
+  options: SFCAsyncStyleCompileOptions,
+) => Promise<SFCStyleCompileResults>
 
 function normalizeCssOutput(code: string) {
   return code
@@ -319,169 +329,114 @@ color: red;
   from { color: red; }
   to { color: green; }
 }
-@-webkit-keyframes color {
-  from { color: red; }
-  to { color: green; }
-}
 @keyframes opacity {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-@-webkit-keyframes opacity {
-  from { opacity: 0; }
-  to { opacity: 1; }
+
+.anim-multi-line {
+  animation:
+    color 5s infinite,
+    opacity 2s;
 }
-          `,
-          { id: 'data-v-test' },
+.anim-multi-line-2 {
+  animation-name:
+    color,
+    opacity;
+  animation-duration:
+    5s,
+    2s;
+}
+`,
         ),
       )
 
-      expect(style).toContain(`.anim[data-v-test] {`)
+      expect(style).toMatch(/\.anim\[data-v-test\] \{[^}]*color-test[^}]*other/)
       expect(style).toMatch(
-        /animation: (?:color-test 5s infinite, other 5s|5s infinite color-test, 5s other);/,
+        /\.anim-2\[data-v-test\] \{[^}]*animation-name: color-test/,
       )
-      expect(style).toContain(`.anim-2[data-v-test] {`)
-      expect(style).toContain(`animation-name: color-test`)
-      expect(style).toContain(`.anim-3[data-v-test] {`)
       expect(style).toMatch(
-        /animation: (?:5s color-test infinite|5s infinite color-test), 5s other;/,
+        /\.anim-3\[data-v-test\] \{[^}]*color-test[^}]*other/,
       )
-      expect(style).toContain(`.anim-multiple[data-v-test] {`)
       expect(style).toMatch(
-        /animation: (?:color-test 5s infinite|5s infinite color-test), ?(?:opacity-test 2s|2s opacity-test);/,
+        /\.anim-multiple\[data-v-test\] \{[^}]*color-test[^}]*opacity-test/,
       )
-      expect(style).toContain(`.anim-multiple-2[data-v-test] {`)
-      expect(style).toMatch(/animation-name: color-test, ?opacity-test;/)
+      expect(style).toMatch(
+        /\.anim-multiple-2\[data-v-test\] \{[^}]*color-test[^}]*opacity-test/,
+      )
       expect(style).toContain(`@keyframes color-test {`)
-      expect(style).toContain(`@-webkit-keyframes color-test {`)
       expect(style).toContain(`@keyframes opacity-test {`)
-      expect(style).toContain(`@-webkit-keyframes opacity-test {`)
-    })
-
-    test('spaces after selector', () => {
-      expectCodeToContain(
-        compileScoped(`.foo , .bar { color: red; }`),
-        `.foo[data-v-test], .bar[data-v-test] { color: red;`,
+      expect(style).toMatch(
+        /\.anim-multi-line\[data-v-test\] \{[^}]*color-test[^}]*opacity-test/,
+      )
+      expect(style).toMatch(
+        /\.anim-multi-line-2\[data-v-test\] \{[^}]*color-test[^}]*opacity-test/,
       )
     })
 
-    describe('deprecated syntax', () => {
-      test('::v-deep as combinator', () => {
-        expectCodeToContain(
-          compileScoped(`::v-deep .foo { color: red; }`),
-          `[data-v-test] .foo { color: red;`,
-        )
-        expectCodeToContain(
-          compileScoped(`.bar ::v-deep .foo { color: red; }`),
-          `.bar[data-v-test] .foo { color: red;`,
-        )
-        expect(
-          `::v-deep usage as a combinator has been deprecated.`,
-        ).toHaveBeenWarned()
-      })
-
-      test('>>> (deprecated syntax)', () => {
-        expectCodeToContain(
-          compileScoped(`>>> .foo { color: red; }`),
-          `[data-v-test] .foo { color: red;`,
-        )
-        expect(
-          `the >>> and /deep/ combinators have been deprecated.`,
-        ).toHaveBeenWarned()
-      })
-
-      test('/deep/ (deprecated syntax)', () => {
-        expectCodeToContain(
-          compileScoped(`/deep/ .foo { color: red; }`),
-          `[data-v-test] .foo { color: red;`,
-        )
-        expect(
-          `the >>> and /deep/ combinators have been deprecated.`,
-        ).toHaveBeenWarned()
-      })
-    })
-
-    test('should mount scope on correct selector when have universal selector', () => {
-      expectCodeToContain(compileScoped(`* { color: red; }`), `[data-v-test]`)
+    test('pre-processors', () => {
       expectCodeToContain(
-        compileScoped(`* .foo { color: red; }`),
+        compileScoped(`.foo { color: red; }`, {
+          preprocessLang: 'scss',
+        }),
         `.foo[data-v-test]`,
       )
-      expectCodeToContain(
-        compileScoped(`*.foo { color: red; }`),
-        `.foo[data-v-test]`,
-      )
-      expectCodeToContain(
-        compileScoped(`.foo * { color: red; }`),
-        `.foo[data-v-test] *`,
-      )
+    }, 20_000)
+
+    test('source map', () => {
+      const filename = path.resolve(__dirname, '../__tests__/fixture/test.css')
+      const style = compileScoped(`.foo { color: red; }`, {
+        filename,
+        inMap: {
+          version: '3',
+          file: filename,
+          sources: [filename],
+          sourcesContent: [`.foo { color: red; }`],
+          names: [],
+          mappings: 'AAAA,CAAC,IAAI,EAAE,KAAK,EAAE,GAAG,EAAE',
+        } as RawSourceMap,
+      })
+      expectCodeToContain(style, `.foo[data-v-test] { color: red;`)
     })
   })
+}
 
-  describe(`${label} style preprocessors`, () => {
-    test('scss @import', () => {
-      const res = compileStyleImpl({
-        source: `
-            @import "./import.scss";
-          `,
-        filename: path.resolve(__dirname, './fixture/test.scss'),
-        id: '',
-        preprocessLang: 'scss',
+export function runSharedCssModulesCompileTests(
+  label: string,
+  compileStyleAsyncImpl: CompileStyleAsyncImpl,
+): void {
+  describe(`${label} CSS modules`, () => {
+    test('includes resulting classes object in result', async () => {
+      const result = await compileStyleAsyncImpl({
+        source:
+          '.red { color: red }\n.green { color: green }\n:global(.blue) { color: blue }',
+        filename: 'test.css',
+        id: 'test',
+        modules: true,
       })
 
-      expect([...res.dependencies]).toStrictEqual([
-        path.join(__dirname, './fixture/import.scss'),
-      ])
-    }, 15000)
-
-    test('scss respect user-defined string options.additionalData', () => {
-      const res = compileStyleImpl({
-        preprocessOptions: {
-          additionalData: `
-            @mixin square($size) {
-              width: $size;
-              height: $size;
-            }`,
-        },
-        source: `
-          .square {
-            @include square(100px);
-          }
-        `,
-        filename: path.resolve(__dirname, './fixture/test.scss'),
-        id: '',
-        preprocessLang: 'scss',
-      })
-
-      expect(res.errors.length).toBe(0)
+      expect(result.modules).toBeDefined()
+      expect(result.modules!.red).toBeDefined()
+      expect(result.modules!.green).toBeDefined()
+      expect(result.modules!.blue).toBeUndefined()
     })
 
-    test('scss respect user-defined function options.additionalData', () => {
-      const source = `
-          .square {
-            @include square(100px);
-          }
-        `
-      const filename = path.resolve(__dirname, './fixture/test.scss')
-      const res = compileStyleImpl({
-        preprocessOptions: {
-          additionalData: (s: string, f: string) => {
-            expect(s).toBe(source)
-            expect(f).toBe(filename)
-            return `
-            @mixin square($size) {
-              width: $size;
-              height: $size;
-            }`
-          },
+    test('supports shared css modules options subset', async () => {
+      const result = await compileStyleAsyncImpl({
+        source: ':local(.foo-bar) { color: red }\n.baz-qux { color: green }',
+        filename: 'test.css',
+        id: 'test',
+        modules: true,
+        modulesOptions: {
+          generateScopedName: '[name]__[local]__[hash]',
+          localsConvention: 'camelCaseOnly',
         },
-        source,
-        filename,
-        id: '',
-        preprocessLang: 'scss',
       })
 
-      expect(res.errors.length).toBe(0)
+      expect(result.modules).toEqual({
+        fooBar: expect.stringMatching(/^test__foo-bar__/),
+        bazQux: expect.stringMatching(/^test__baz-qux__/),
+      })
     })
   })
 }

@@ -52,14 +52,6 @@
     "postcss": "^8.5.8",
     "source-map-js": "catalog:"
   },
-  "peerDependencies": {
-    "lightningcss": "^1.32.0"
-  },
-  "peerDependenciesMeta": {
-    "lightningcss": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@babel/types": "catalog:",
     "@vue/consolidate": "^1.0.0",
