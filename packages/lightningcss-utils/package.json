@@ -1,0 +1,56 @@
+{
+  "name": "@vue/lightningcss-utils",
+  "version": "3.5.32",
+  "description": "Lightning CSS-compatible selector and source utility helpers",
+  "main": "dist/lightningcss-utils.cjs.js",
+  "module": "dist/lightningcss-utils.esm-bundler.js",
+  "types": "dist/lightningcss-utils.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/lightningcss-utils.d.ts",
+      "node": "./dist/lightningcss-utils.cjs.js",
+      "module": "./dist/lightningcss-utils.esm-bundler.js",
+      "import": "./dist/lightningcss-utils.esm-bundler.js",
+      "require": "./dist/lightningcss-utils.cjs.js"
+    },
+    "./*": "./*"
+  },
+  "sideEffects": false,
+  "buildOptions": {
+    "name": "VueLightningCssUtils",
+    "formats": [
+      "esm-bundler",
+      "cjs"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/core.git",
+    "directory": "packages/lightningcss-utils"
+  },
+  "keywords": [
+    "vue",
+    "css",
+    "lightningcss"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/core/issues"
+  },
+  "homepage": "https://github.com/vuejs/core/tree/main/packages/lightningcss-utils#readme",
+  "peerDependencies": {
+    "lightningcss": "^1.32.0"
+  },
+  "peerDependenciesMeta": {
+    "lightningcss": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "lightningcss": "^1.32.0"
+  }
+}

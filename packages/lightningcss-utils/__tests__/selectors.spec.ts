@@ -9,7 +9,7 @@ import type { SelectorParserOptions } from '../src/selectors'
  * Migrated from the parser-focused suites in
  * `postcss-selector-parser/src/__tests__`.
  *
- * This suite covers the selector-facing API of `@vue/lightningcss-lexer`.
+ * This suite covers the selector-facing API of `@vue/lightningcss-utils`.
  *
  * Not migrated:
  * - `attributes-deprecations.mjs`, `constructors.mjs`, `container.mjs`,

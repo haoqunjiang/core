@@ -1,4 +1,4 @@
-import type { CssBlockNode } from '@vue/lightningcss-lexer'
+import type { CssBlockNode } from '@vue/lightningcss-utils'
 import type MagicString from 'magic-string'
 import { hasTopLevelTextSegments } from './text'
 

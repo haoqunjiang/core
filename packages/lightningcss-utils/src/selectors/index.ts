@@ -1,6 +1,6 @@
 import type { SelectorList, TokenOrValue } from 'lightningcss'
 import { StringSelectorParser } from './stringParser'
-import { parseCompatiblePreludeFragment } from './preludeCompat'
+import { parseCompatibleSelectorFragment } from './compat'
 import { decodeCssEscape } from './identifiers'
 import { stringifySelector, stringifyTokens } from './stringify'
 import type { SelectorParserOptions } from './shared'
@@ -28,9 +28,9 @@ export function parseSelectorListFromString(
   source: string,
   options: SelectorParserOptions = {},
 ): SelectorList {
-  const compatiblePrelude = parseCompatiblePreludeFragment(source)
-  if (compatiblePrelude) {
-    return compatiblePrelude
+  const compatibleSelector = parseCompatibleSelectorFragment(source)
+  if (compatibleSelector) {
+    return compatibleSelector
   }
   return new StringSelectorParser(source, options).parseSelectorList()
 }

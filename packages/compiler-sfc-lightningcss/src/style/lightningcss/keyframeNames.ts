@@ -1,4 +1,4 @@
-import { decodeCssEscape } from '@vue/lightningcss-lexer'
+import { decodeCssEscape } from '@vue/lightningcss-utils'
 
 const keyframesPreludePrefixRE = /^@(?:-\w+-)?keyframes\b\s+/i
 

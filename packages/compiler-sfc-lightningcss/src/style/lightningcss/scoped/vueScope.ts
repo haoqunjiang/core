@@ -1,6 +1,7 @@
-import type { SelectorParserOptions } from '@vue/lightningcss-lexer'
+import type { SelectorParserOptions } from '@vue/lightningcss-utils'
 
-// This file describes the Vue-specific selector syntax that the generic lexer
+// This file describes the Vue-specific selector syntax that the generic
+// selector utilities
 // and scoped selector rewriter need to recognize.
 //
 // In practice that means:

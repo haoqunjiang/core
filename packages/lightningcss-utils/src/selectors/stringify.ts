@@ -21,7 +21,7 @@ type NamespaceSelector =
   | undefined
 
 /**
- * Serializes the selector subset produced by the local lexer helpers.
+ * Serializes the selector subset produced by the local selector utilities.
  *
  * This is intentionally paired with the lightweight parser in `selectors/`,
  * not a promise to stringify every Lightning CSS selector shape losslessly.

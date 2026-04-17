@@ -4,36 +4,30 @@ import {
   isIdentifierContinue,
   isIdentifierStart,
 } from './identifiers'
-import { parseStandardPseudoClassFunction } from './pseudoFunctions'
+import { SelectorParserBase } from './parserBase'
 import {
   type AttrOperation,
-  type AttributeSelector,
-  type CustomFunctionSelector,
   type LocalNamespaceConstraint,
   type ParsedCaseSensitivity,
-  type PseudoClassSelector,
-  type PseudoElementSelector,
   type SelectorParserOptions,
   createCombinator,
-  createSimplePseudoClass,
-  createSimplePseudoElement,
-  isCombinator,
   isWhitespace,
   setParsedSelectorSource,
 } from './shared'
 
-export class StringSelectorParser {
+export class StringSelectorParser extends SelectorParserBase<string, number> {
   private index = 0
   private readonly endIndex: number
   private readonly sourceContainsComments: boolean
 
   constructor(
     private readonly source: string,
-    private readonly options: SelectorParserOptions,
+    options: SelectorParserOptions,
     start: number = 0,
     end: number = source.length,
     sourceContainsComments?: boolean,
   ) {
+    super(options)
     this.index = start
     this.endIndex = end
     this.sourceContainsComments =
@@ -44,86 +38,7 @@ export class StringSelectorParser {
       })()
   }
 
-  parseSelectorList(endChar?: string): SelectorList {
-    const selectors: SelectorList = []
-
-    while (!this.isDone()) {
-      const selectorLeadingTriviaStart = this.index
-      this.skipWhitespace()
-      if (this.isDone()) {
-        break
-      }
-      if (endChar && this.peek() === endChar) {
-        break
-      }
-
-      const selector = this.parseSelector(endChar)
-      if (this.sourceContainsComments) {
-        const rawSelectorSource = this.source
-          .slice(selectorLeadingTriviaStart, this.index)
-          .trim()
-        if (rawSelectorSource.includes('/*')) {
-          setParsedSelectorSource(selector, rawSelectorSource)
-        }
-      }
-      selectors.push(selector)
-      this.skipWhitespace()
-
-      if (this.peek() === ',') {
-        this.index++
-        continue
-      }
-
-      break
-    }
-
-    return selectors
-  }
-
-  private parseSelector(endChar?: string): Selector {
-    const selector: Selector = []
-    let needsDescendantCombinator = false
-
-    while (!this.isDone()) {
-      if (this.sourceContainsComments && this.consumeComment()) {
-        continue
-      }
-
-      if (this.consumeWhitespace()) {
-        if (selector.length && !isCombinator(selector[selector.length - 1])) {
-          needsDescendantCombinator = true
-        }
-        continue
-      }
-
-      const current = this.peek()
-      if (
-        current == null ||
-        current === ',' ||
-        (endChar && current === endChar)
-      ) {
-        break
-      }
-
-      const combinator = this.parseCombinator()
-      if (combinator) {
-        selector.push(combinator)
-        needsDescendantCombinator = false
-        continue
-      }
-
-      if (needsDescendantCombinator) {
-        selector.push(createCombinator('descendant'))
-        needsDescendantCombinator = false
-      }
-
-      this.appendComponents(selector)
-    }
-
-    return selector
-  }
-
-  private appendComponents(selector: Selector): void {
+  protected parseComponents(): SelectorComponent[] {
     const current = this.peek()
     if (current == null) {
       throw new Error('Unexpected end of selector input.')
@@ -131,68 +46,63 @@ export class StringSelectorParser {
 
     if (current === '.') {
       this.index++
-      selector.push({
-        type: 'class',
-        name: this.readIdentifier(),
-      })
-      return
+      return [
+        {
+          type: 'class',
+          name: this.readIdentifier(),
+        },
+      ]
     }
 
     if (current === '#') {
       this.index++
-      selector.push({
-        type: 'id',
-        name: this.readIdentifier(),
-      })
-      return
+      return [
+        {
+          type: 'id',
+          name: this.readIdentifier(),
+        },
+      ]
     }
 
     if (current === '&' && this.peek(1) !== '|') {
       this.index++
-      selector.push({ type: 'nesting' })
-      return
+      return [{ type: 'nesting' }]
     }
 
     if (current === '[') {
-      selector.push(this.parseAttribute())
-      return
+      return [this.parseAttribute()]
     }
 
     if (current === ':') {
-      selector.push(this.parsePseudo())
-      return
+      return [this.parsePseudo()]
     }
 
     if (current === '*') {
       if (this.peek(1) === '|') {
         this.index += 2
-        selector.push(
+        return [
           { type: 'namespace', kind: 'any' },
           this.parseNamespacedTarget(),
-        )
-        return
+        ]
       }
       this.index++
-      selector.push({ type: 'universal' })
-      return
+      return [{ type: 'universal' }]
     }
 
     if (current === '|') {
       this.index++
-      selector.push(
+      return [
         { type: 'namespace', kind: 'none' },
         this.parseNamespacedTarget(),
-      )
-      return
+      ]
     }
 
     if (current === '&' && this.peek(1) === '|') {
       this.index += 2
-      selector.push(
+      return [
         { type: 'namespace', kind: 'named', prefix: '&' },
         this.parseNamespacedTarget(),
-      )
-      return
+      ]
     }
 
     if (!isIdentifierStart(current) && current !== '\\') {
@@ -201,20 +111,21 @@ export class StringSelectorParser {
 
     const identifier = this.readIdentifier()
     if (this.consume('|')) {
-      selector.push(
+      return [
         { type: 'namespace', kind: 'named', prefix: identifier },
         this.parseNamespacedTarget(),
-      )
-      return
+      ]
     }
 
-    selector.push({
-      type: 'type',
-      name: identifier,
-    })
+    return [
+      {
+        type: 'type',
+        name: identifier,
+      },
+    ]
   }
 
-  private parseCombinator():
+  protected parseCombinator():
     | Extract<SelectorComponent, { type: 'combinator' }>
     | undefined {
     if (this.peek() === '>' && this.peek(1) === '>' && this.peek(2) === '>') {
@@ -247,133 +158,7 @@ export class StringSelectorParser {
     }
   }
 
-  private parseAttribute(): AttributeSelector {
-    this.expect('[')
-    this.skipWhitespace()
-
-    const { name, namespace } = this.readAttributeNameWithNamespace()
-    this.skipWhitespace()
-
-    const operator = this.readAttributeOperator()
-
-    let normalizedOperation: AttributeSelector['operation'] = null
-    if (operator) {
-      this.skipWhitespace()
-      normalizedOperation = {
-        operator,
-        value: this.readAttributeValue(),
-        caseSensitivity: (() => {
-          this.skipWhitespace()
-          return this.readAttributeCaseSensitivity()
-        })(),
-      }
-      this.skipWhitespace()
-    }
-
-    this.expect(']')
-
-    return {
-      type: 'attribute',
-      name,
-      namespace: namespace as AttributeSelector['namespace'],
-      operation: normalizedOperation,
-    }
-  }
-
-  private parsePseudo(): PseudoClassSelector | PseudoElementSelector {
-    this.expect(':')
-    const isElement = this.consume(':')
-    const name = this.readIdentifier()
-
-    if (!this.consume('(')) {
-      return isElement
-        ? createSimplePseudoElement(name)
-        : createSimplePseudoClass(name)
-    }
-
-    const { start, end } = this.readBalancedRange(')')
-
-    if (!isElement) {
-      if (
-        name === 'has' ||
-        name === 'is' ||
-        name === 'not' ||
-        name === 'where'
-      ) {
-        return {
-          type: 'pseudo-class',
-          kind: name,
-          selectors: this.parseSelectorListRange(start, end),
-        }
-      }
-
-      if (name === 'host') {
-        const selectors = this.parseSelectorListRange(start, end)
-        if (selectors.length > 1) {
-          throw new Error(`Unsupported selector list in :${name}().`)
-        }
-        return {
-          type: 'pseudo-class',
-          kind: 'host',
-          selectors: selectors[0] || null,
-        }
-      }
-
-      if (
-        this.options.selectorListFunctionNames &&
-        this.options.selectorListFunctionNames.has(name)
-      ) {
-        return {
-          type: 'pseudo-class',
-          kind: 'custom-function',
-          name,
-          arguments: [],
-          selectors: this.parseSelectorListRange(start, end),
-        } as CustomFunctionSelector
-      }
-
-      const content = this.sliceRange(start, end)
-      const parsedStandardPseudo = parseStandardPseudoClassFunction(
-        name,
-        content,
-        selectorContent =>
-          new StringSelectorParser(
-            selectorContent,
-            this.options,
-          ).parseSelectorList(),
-      )
-      if (parsedStandardPseudo) {
-        return parsedStandardPseudo
-      }
-    } else if (name === 'slotted') {
-      const selectors = this.parseSelectorListRange(start, end)
-      if (selectors.length > 1) {
-        throw new Error(`Unsupported selector list in ::${name}().`)
-      }
-      return {
-        type: 'pseudo-element',
-        kind: 'slotted',
-        selector: selectors[0] || [],
-      }
-    } else if (
-      this.options.selectorListFunctionNames &&
-      this.options.selectorListFunctionNames.has(name)
-    ) {
-      return {
-        type: 'pseudo-element',
-        kind: 'custom-function',
-        name,
-        arguments: [],
-        selectors: this.parseSelectorListRange(start, end),
-      } as CustomFunctionSelector
-    }
-
-    throw new Error(
-      `Unsupported pseudo selector function: ${isElement ? '::' : ':'}${name}().`,
-    )
-  }
-
-  private readAttributeOperator(): AttrOperation['operator'] | null {
+  protected readAttributeOperator(): AttrOperation['operator'] | null {
     const current = this.peek()
     const next = this.peek(1)
     if (next === '=') {
@@ -403,7 +188,7 @@ export class StringSelectorParser {
     return null
   }
 
-  private readAttributeValue(): string {
+  protected readAttributeValue(): string {
     const quote = this.peek()
     if (quote === '"' || quote === "'") {
       this.index++
@@ -428,7 +213,9 @@ export class StringSelectorParser {
     return this.readIdentifier()
   }
 
-  private readAttributeCaseSensitivity(): ParsedCaseSensitivity | undefined {
+  protected readAttributeCaseSensitivity():
+    | ParsedCaseSensitivity
+    | undefined {
     const marker = this.peek()
     if (marker === 'i' || marker === 'I') {
       this.index++
@@ -498,7 +285,7 @@ export class StringSelectorParser {
     throw new Error('Unterminated string in selector.')
   }
 
-  private readIdentifier(): string {
+  protected readIdentifier(): string {
     if (!isIdentifierStart(this.peek()) && this.peek() !== '\\') {
       throw new Error('Expected selector identifier.')
     }
@@ -582,7 +369,7 @@ export class StringSelectorParser {
     this.index = start
   }
 
-  private readAttributeNameWithNamespace(): {
+  protected readAttributeNameWithNamespace(): {
     name: string
     namespace: LocalNamespaceConstraint | null
   } {
@@ -635,7 +422,7 @@ export class StringSelectorParser {
     }
   }
 
-  private consumeWhitespace(): boolean {
+  protected consumeWhitespace(): boolean {
     const start = this.index
     while (!this.isDone()) {
       const current = this.peek()
@@ -647,19 +434,7 @@ export class StringSelectorParser {
     return this.index > start
   }
 
-  private skipWhitespace(): void {
-    while (this.consumeWhitespace()) {
-      continue
-    }
-    if (!this.sourceContainsComments) {
-      return
-    }
-    while (this.consumeComment() || this.consumeWhitespace()) {
-      continue
-    }
-  }
-
-  private consumeComment(): boolean {
+  protected consumeComment(): boolean {
     if (
       this.sourceContainsComments &&
       this.peek() === '/' &&
@@ -694,8 +469,71 @@ export class StringSelectorParser {
     return nextIndex < this.endIndex ? this.source[nextIndex] : undefined
   }
 
-  private isDone(): boolean {
+  protected isDone(): boolean {
     return this.index >= this.endIndex
+  }
+
+  protected parseNestedSelectorList(): SelectorList {
+    const { start, end } = this.readBalancedRange(')')
+    return this.parseSelectorListRange(start, end)
+  }
+
+  protected parseSelectorListFromSource(source: string): SelectorList {
+    return new StringSelectorParser(source, this.options).parseSelectorList()
+  }
+
+  protected readPseudoFunctionContentSource(): string {
+    const { start, end } = this.readBalancedRange(')')
+    return this.sliceRange(start, end)
+  }
+
+  protected expectAttributeStart(): void {
+    this.expect('[')
+  }
+
+  protected expectAttributeEnd(): void {
+    this.expect(']')
+  }
+
+  protected expectPseudoStart(): void {
+    this.expect(':')
+  }
+
+  protected consumePseudoElementMarker(): boolean {
+    return this.consume(':')
+  }
+
+  protected beginPseudoFunctionArguments(): boolean {
+    return this.consume('(')
+  }
+
+  protected isAtSelectorListBoundary(endChar?: string): boolean {
+    const current = this.peek()
+    return current == null || current === ',' || (!!endChar && current === endChar)
+  }
+
+  protected consumeSelectorListSeparator(): boolean {
+    return this.consume(',')
+  }
+
+  protected markSelectorStart(): number {
+    return this.index
+  }
+
+  protected recordParsedSelectorSource(
+    selector: Selector,
+    selectorLeadingTriviaStart: number,
+  ): void {
+    if (!this.sourceContainsComments) {
+      return
+    }
+
+    const rawSelectorSource = this.source
+      .slice(selectorLeadingTriviaStart, this.index)
+      .trim()
+    if (rawSelectorSource.includes('/*')) {
+      setParsedSelectorSource(selector, rawSelectorSource)
+    }
   }
 
   private parseSelectorListRange(start: number, end: number): SelectorList {

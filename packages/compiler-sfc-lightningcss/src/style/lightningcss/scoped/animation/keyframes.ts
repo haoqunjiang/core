@@ -1,5 +1,5 @@
 import type MagicString from 'magic-string'
-import { walkCssBlockPreludes } from '@vue/lightningcss-lexer'
+import { walkCssBlockPreludes } from '@vue/lightningcss-utils'
 import { rewriteRawAnimationIdentifier } from './names'
 
 const quotedKeyframesPreludeRE =

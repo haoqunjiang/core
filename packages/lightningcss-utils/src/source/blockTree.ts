@@ -1,9 +1,9 @@
-import type { CssBlockKind } from '../blockPrelude'
+import type { CssBlockKind } from './preludes'
 import {
   getCssBlockKind,
   isCustomPropertyDeclarationPrelude,
   normalizeBlockPrelude,
-} from '../blockShared'
+} from './shared'
 
 export interface CssBlockNode {
   blockKind: CssBlockKind

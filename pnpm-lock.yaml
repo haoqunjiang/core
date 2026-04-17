@@ -295,9 +295,9 @@ importers:
       '@vue/compiler-ssr':
         specifier: workspace:*
         version: link:../compiler-ssr
-      '@vue/lightningcss-lexer':
+      '@vue/lightningcss-utils':
         specifier: workspace:*
-        version: link:../lightningcss-lexer
+        version: link:../lightningcss-utils
       '@vue/shared':
         specifier: workspace:*
         version: link:../shared
@@ -356,9 +356,9 @@ importers:
       '@vue/compiler-sfc':
         specifier: workspace:*
         version: link:../compiler-sfc
-      '@vue/lightningcss-lexer':
+      '@vue/lightningcss-utils':
         specifier: workspace:*
-        version: link:../lightningcss-lexer
+        version: link:../lightningcss-utils
       '@vue/shared':
         specifier: workspace:*
         version: link:../shared
@@ -385,7 +385,7 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/lightningcss-lexer:
+  packages/lightningcss-utils:
     devDependencies:
       lightningcss:
         specifier: ^1.32.0

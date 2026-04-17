@@ -16,7 +16,7 @@ interface SelectorComponentRange {
   start: number
 }
 
-const directScopeSelectorContainers: ReadonlySet<string> = new Set([
+const scopePreludeSelectorContainers: ReadonlySet<string> = new Set([
   'is',
   'where',
 ])
@@ -324,7 +324,7 @@ class DirectSelectorPreludeScoper {
 
     return {
       kind:
-        !isElement && directScopeSelectorContainers.has(name)
+        !isElement && scopePreludeSelectorContainers.has(name)
           ? 'container'
           : 'pseudo',
       start,

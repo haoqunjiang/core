@@ -1,9 +1,4 @@
 export {
-  walkCssBlockPreludes,
-  type CssBlockKind,
-  type CssBlockPrelude,
-} from './blockPrelude'
-export {
   parseSelectorListFromString,
   parseSelectorListFromTokens,
   decodeCssEscape,
@@ -12,9 +7,12 @@ export {
   type SelectorParserOptions,
 } from './selectors'
 export {
+  walkCssBlockPreludes,
   parseCssBlockTree,
   rewriteCssSelectorSource,
   scopeSelectorPrelude,
+  type CssBlockKind,
+  type CssBlockPrelude,
   type CssBlockNode,
   type CssSelectorSourceRewriteOptions,
 } from './source'

@@ -1,4 +1,4 @@
-import { walkCssBlockPreludes } from '@vue/lightningcss-lexer'
+import { walkCssBlockPreludes } from '@vue/lightningcss-utils'
 import { hasCssVarsBinding } from '../cssVars'
 import { registerScopedKeyframeRename } from './keyframeNames'
 

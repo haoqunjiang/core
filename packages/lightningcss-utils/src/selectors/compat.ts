@@ -4,7 +4,7 @@ import { setParsedSelectorSource } from './shared'
 const keyframeSelectorPattern =
   /^(?:from|to|(?:\d+(?:\.\d+)?%))(?:\s*,\s*(?:from|to|(?:\d+(?:\.\d+)?%)))*$/i
 
-export function parseCompatiblePreludeFragment(
+export function parseCompatibleSelectorFragment(
   source: string,
 ): SelectorList | undefined {
   const trimmed = source.trim()

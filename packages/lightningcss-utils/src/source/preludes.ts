@@ -2,7 +2,7 @@ import {
   getCssBlockKind,
   isCustomPropertyDeclarationPrelude,
   normalizeBlockPrelude,
-} from './blockShared'
+} from './shared'
 
 export type CssBlockKind = 'at-rule' | 'keyframes' | 'style'
 

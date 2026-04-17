@@ -5,7 +5,7 @@ import type {
   TokenOrValue,
 } from 'lightningcss'
 import { extend } from '@vue/shared'
-import { parseSelectorListFromTokens } from '@vue/lightningcss-lexer'
+import { parseSelectorListFromTokens } from '@vue/lightningcss-utils'
 import { warn } from '../../../warn'
 import {
   cloneAttribute,

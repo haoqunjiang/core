@@ -1,5 +1,5 @@
 import type MagicString from 'magic-string'
-import type { CssBlockNode } from '@vue/lightningcss-lexer'
+import type { CssBlockNode } from '@vue/lightningcss-utils'
 
 // Reuse Vue's existing `:global(...)` escape hatch as the source-level carrier
 // for “do not inject the normal scope attribute on this selector”.

@@ -1,6 +1,6 @@
-# Lightning CSS Lexer
+# Lightning CSS Utils
 
-This directory contains the source-level and selector-level utilities that sit
+This package contains the source-level and selector-level utilities that sit
 between raw CSS text and Lightning CSS.
 
 The design goal is narrow:
@@ -29,19 +29,24 @@ In practice:
 - runtime use of the source-facing helpers does not load `lightningcss`
 - selector-facing APIs and published `.d.ts` files assume `lightningcss` is
   available for type resolution
-- packages that expose this lexer as an opt-in capability should surface a
+- packages that expose these utilities as an opt-in capability should surface a
   clear install error at the point where Lightning CSS-backed behavior is
   actually enabled
 
 ## Package Shape
 
-The package has one runtime entrypoint, but that entrypoint is organized around
-two conceptual modules:
+The published package currently has one runtime entrypoint, but that entrypoint
+is organized around two conceptual modules:
 
 - selector parsing and stringifying
 - source-level CSS rewriting
 
 Everything else in the package exists in support of those two surfaces.
+
+That split is also reflected in the source tree:
+
+- `src/selectors/`
+- `src/source/`
 
 That distinction matters. The package boundary is not “every file under
 `src/`”. The useful interface is:
@@ -55,7 +60,7 @@ That distinction matters. The package boundary is not “every file under
 
 ## Core Design Choice
 
-This lexer does **not** define its own selector AST.
+These utilities do **not** define their own selector AST.
 
 Instead, the selector-facing API uses Lightning CSS selector shapes directly.
 That keeps the bridge simple:
@@ -105,7 +110,7 @@ case where custom selector-function arguments are exposed as `TokenOrValue[]`
 instead of structured selectors.
 
 `stringifySelector(...)` and `stringifyTokens(...)` are the paired serializers
-for the subset produced by this lexer. They should be treated as part of the
+for the subset produced by these utilities. They should be treated as part of the
 same module contract, not as general-purpose printers for arbitrary CSS data.
 
 ### Parser Options
@@ -216,7 +221,8 @@ It performs one very specific fast-path rewrite:
   subset.
 
 So `scopeSelectorPrelude(...)` should be read as a convenience helper
-built on the same lexer ideas, not as the core abstraction of the package.
+built on the same low-level scanning ideas, not as the core abstraction of the
+package.
 It is best treated as an opt-in fast path rather than the centerpiece of the
 API.
 
@@ -263,7 +269,7 @@ It is a good fit when a pipeline wants:
 - a mutable selector AST,
 - compatibility with PostCSS-style source preservation and ecosystem behavior.
 
-This lexer is narrower and more opinionated:
+This package is narrower and more opinionated:
 
 - it uses Lightning CSS selector shapes directly,
 - it is designed to compose with source-level rewriting,
@@ -274,20 +280,23 @@ This lexer is narrower and more opinionated:
 So the comparison is useful, but the roles are different:
 
 - `postcss-selector-parser` is a selector library,
-- this lexer is a Lightning CSS-oriented selector/source bridge.
+- this package is a Lightning CSS-oriented selector/source bridge.
 
 ## Internal Files
 
 The main internal implementation files are:
 
-- `selectors/parseString.ts`
-- `selectors/parseTokens.ts`
+- `selectors/stringParser.ts`
+- `selectors/tokenParser.ts`
+- `selectors/parserBase.ts`
+- `selectors/compat.ts`
 - `selectors/stringify.ts`
 - `selectors/shared.ts`
+- `source/preludes.ts`
+- `source/shared.ts`
 - `source/rewrite.ts`
 - `source/blockTree.ts`
-- `source/directScope.ts`
-- `blockPrelude.ts`
+- `source/scopePrelude.ts`
 
 They are useful to read when working on the implementation, but they should not
 be treated as separate public interfaces. The boundary to preserve is still:
@@ -297,7 +306,7 @@ be treated as separate public interfaces. The boundary to preserve is still:
 
 ## When To Use This Layer
 
-Use this lexer when a transform needs all or most of the following:
+Use this package when a transform needs all or most of the following:
 
 - selector rewriting from raw CSS source,
 - compatibility with Lightning CSS selector shapes,

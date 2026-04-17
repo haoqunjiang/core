@@ -1,4 +1,4 @@
-import { parseSelectorListFromString } from '@vue/lightningcss-lexer'
+import { parseSelectorListFromString } from '@vue/lightningcss-utils'
 import type { Selector, SelectorComponent } from 'lightningcss'
 import {
   getVueScopeCarrierKind,

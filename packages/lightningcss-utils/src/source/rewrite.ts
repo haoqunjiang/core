@@ -1,5 +1,5 @@
 import type { Selector } from 'lightningcss'
-import { walkCssBlockPreludes } from '../blockPrelude'
+import { walkCssBlockPreludes } from './preludes'
 import {
   type SelectorParserOptions,
   parseSelectorListFromString,

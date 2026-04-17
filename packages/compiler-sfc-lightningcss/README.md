@@ -120,8 +120,8 @@ current PostCSS-based `@vue/compiler-sfc` implementation.
 
 - `@vue/compiler-sfc`
   The default compiler-sfc package with the PostCSS-based style compiler.
-- `@vue/lightningcss-lexer`
-  Shared lexer utilities used by this package’s source-level style pipeline.
+- `@vue/lightningcss-utils`
+  Shared selector and source utilities used by this package’s style pipeline.
 
 ## Dependency
 

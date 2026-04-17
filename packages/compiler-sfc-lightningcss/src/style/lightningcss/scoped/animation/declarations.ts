@@ -1,5 +1,5 @@
 import type MagicString from 'magic-string'
-import type { CssBlockNode } from '@vue/lightningcss-lexer'
+import type { CssBlockNode } from '@vue/lightningcss-utils'
 import { findTopLevelColon } from './scan'
 import { rewriteAnimationNameValue } from './names'
 import { rewriteAnimationShorthandValue } from './shorthand'

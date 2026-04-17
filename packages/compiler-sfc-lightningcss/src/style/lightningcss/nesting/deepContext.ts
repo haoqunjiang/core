@@ -1,5 +1,5 @@
 import type { Selector, SelectorComponent } from 'lightningcss'
-import { parseSelectorListFromString } from '@vue/lightningcss-lexer'
+import { parseSelectorListFromString } from '@vue/lightningcss-utils'
 import { vueScopeParserOptions } from '../scoped/vueScope'
 
 export type NestedScopeContext = 'deep' | 'none' | 'slotted'

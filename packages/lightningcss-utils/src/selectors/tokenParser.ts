@@ -6,99 +6,28 @@ import type {
   Token,
   TokenOrValue,
 } from 'lightningcss'
+import { SelectorParserBase } from './parserBase'
 import { StringSelectorParser } from './stringParser'
-import { parseStandardPseudoClassFunction } from './pseudoFunctions'
 import { stringifyTokens } from './stringify'
 import {
   type AttrOperation,
-  type AttributeSelector,
-  type CustomFunctionSelector,
   type LocalNamespaceConstraint,
   type ParsedCaseSensitivity,
-  type PseudoClassSelector,
-  type PseudoElementSelector,
   type SelectorParserOptions,
   createCombinator,
-  createSimplePseudoClass,
-  createSimplePseudoElement,
-  isCombinator,
 } from './shared'
 
-export class TokenSelectorParser {
+export class TokenSelectorParser extends SelectorParserBase<Token['type']> {
   private index = 0
 
   constructor(
     private readonly tokens: TokenOrValue[],
-    private readonly options: SelectorParserOptions,
-  ) {}
-
-  parseSelectorList(endType?: Token['type']): SelectorList {
-    const selectors: SelectorList = []
-
-    this.skipWhitespace()
-    while (!this.isDone()) {
-      if (endType && this.peekTokenType() === endType) {
-        break
-      }
-
-      selectors.push(this.parseSelector(endType))
-      this.skipWhitespace()
-
-      if (this.consumeTokenType('comma')) {
-        this.skipWhitespace()
-        continue
-      }
-
-      break
-    }
-
-    return selectors
+    options: SelectorParserOptions,
+  ) {
+    super(options)
   }
 
-  private parseSelector(endType?: Token['type']): Selector {
-    const selector: Selector = []
-    let needsDescendantCombinator = false
-
-    while (!this.isDone()) {
-      if (this.consumeComment()) {
-        continue
-      }
-
-      if (this.consumeWhitespace()) {
-        if (selector.length && !isCombinator(selector[selector.length - 1])) {
-          needsDescendantCombinator = true
-        }
-        continue
-      }
-
-      const tokenType = this.peekTokenType()
-      if (
-        tokenType == null ||
-        tokenType === 'comma' ||
-        (endType && tokenType === endType)
-      ) {
-        break
-      }
-
-      const combinator = this.parseCombinator()
-      if (combinator) {
-        selector.push(combinator)
-        needsDescendantCombinator = false
-        continue
-      }
-
-      if (needsDescendantCombinator) {
-        selector.push(createCombinator('descendant'))
-        needsDescendantCombinator = false
-      }
-
-      selector.push(...this.parseComponents())
-    }
-
-    return selector
-  }
-
-  private parseComponents(): SelectorComponent[] {
+  protected parseComponents(): SelectorComponent[] {
     const token = this.peekToken()
     if (!token) {
       throw new Error('Unexpected end of selector token input.')
@@ -196,7 +125,7 @@ export class TokenSelectorParser {
     ]
   }
 
-  private parseCombinator():
+  protected parseCombinator():
     | Extract<SelectorComponent, { type: 'combinator' }>
     | undefined {
     const token = this.peekToken()
@@ -224,142 +153,7 @@ export class TokenSelectorParser {
     }
   }
 
-  private parseAttribute(): AttributeSelector {
-    this.expectTokenType('square-bracket-block')
-    this.skipWhitespace()
-
-    const { name, namespace } = this.readAttributeNameWithNamespace()
-    this.skipWhitespace()
-
-    const operator = this.readAttributeOperator()
-
-    let normalizedOperation: AttributeSelector['operation'] = null
-    if (operator) {
-      this.skipWhitespace()
-      normalizedOperation = {
-        operator,
-        value: this.readAttributeValue(),
-        caseSensitivity: (() => {
-          this.skipWhitespace()
-          return this.readAttributeCaseSensitivity()
-        })(),
-      }
-      this.skipWhitespace()
-    }
-
-    this.expectTokenType('close-square-bracket')
-
-    return {
-      type: 'attribute',
-      name,
-      namespace: namespace as AttributeSelector['namespace'],
-      operation: normalizedOperation,
-    }
-  }
-
-  private parsePseudo(): PseudoClassSelector | PseudoElementSelector {
-    this.expectTokenType('colon')
-    const isElement = this.consumeTokenType('colon')
-    const name = this.readIdentifier()
-    const functionToken = this.peekToken()
-
-    if (!functionToken || functionToken.type !== 'function') {
-      return isElement
-        ? createSimplePseudoElement(name)
-        : createSimplePseudoClass(name)
-    }
-
-    this.index++
-
-    if (!isElement) {
-      if (isStandardPseudoClassFunction(name)) {
-        const parsedStandardPseudo = parseStandardPseudoClassFunction(
-          name,
-          this.readFunctionContentSource(),
-          selectorContent =>
-            new StringSelectorParser(
-              selectorContent,
-              this.options,
-            ).parseSelectorList(),
-        )
-        if (parsedStandardPseudo) {
-          return parsedStandardPseudo
-        }
-      }
-
-      if (
-        name === 'has' ||
-        name === 'is' ||
-        name === 'not' ||
-        name === 'where'
-      ) {
-        const selectors = this.parseSelectorList('close-parenthesis')
-        this.expectTokenType('close-parenthesis')
-        return {
-          type: 'pseudo-class',
-          kind: name,
-          selectors,
-        }
-      }
-
-      if (name === 'host') {
-        const selectors = this.parseSelectorList('close-parenthesis')
-        this.expectTokenType('close-parenthesis')
-        if (selectors.length > 1) {
-          throw new Error(`Unsupported selector list in :${name}().`)
-        }
-        return {
-          type: 'pseudo-class',
-          kind: 'host',
-          selectors: selectors[0] || null,
-        }
-      }
-      if (
-        this.options.selectorListFunctionNames &&
-        this.options.selectorListFunctionNames.has(name)
-      ) {
-        const selectors = this.parseSelectorList('close-parenthesis')
-        this.expectTokenType('close-parenthesis')
-        return {
-          type: 'pseudo-class',
-          kind: 'custom-function',
-          name,
-          arguments: [],
-          selectors,
-        } as CustomFunctionSelector
-      }
-    } else if (name === 'slotted') {
-      const selectors = this.parseSelectorList('close-parenthesis')
-      this.expectTokenType('close-parenthesis')
-      if (selectors.length > 1) {
-        throw new Error(`Unsupported selector list in ::${name}().`)
-      }
-      return {
-        type: 'pseudo-element',
-        kind: 'slotted',
-        selector: selectors[0] || [],
-      }
-    } else if (
-      this.options.selectorListFunctionNames &&
-      this.options.selectorListFunctionNames.has(name)
-    ) {
-      const selectors = this.parseSelectorList('close-parenthesis')
-      this.expectTokenType('close-parenthesis')
-      return {
-        type: 'pseudo-element',
-        kind: 'custom-function',
-        name,
-        arguments: [],
-        selectors,
-      } as CustomFunctionSelector
-    }
-
-    throw new Error(
-      `Unsupported pseudo selector function: ${isElement ? '::' : ':'}${name}().`,
-    )
-  }
-
-  private readAttributeOperator(): AttrOperation['operator'] | null {
+  protected readAttributeOperator(): AttrOperation['operator'] | null {
     const token = this.peekToken()
     if (!token) {
       return null
@@ -391,7 +185,7 @@ export class TokenSelectorParser {
     return null
   }
 
-  private readAttributeValue(): string {
+  protected readAttributeValue(): string {
     const token = this.peekToken()
     if (!token) {
       throw new Error('Expected attribute value.')
@@ -405,7 +199,9 @@ export class TokenSelectorParser {
     throw new Error(`Unsupported attribute token: "${token.type}".`)
   }
 
-  private readAttributeCaseSensitivity(): ParsedCaseSensitivity | undefined {
+  protected readAttributeCaseSensitivity():
+    | ParsedCaseSensitivity
+    | undefined {
     const token = this.peekToken()
     if (!token || token.type !== 'ident') {
       return
@@ -422,7 +218,7 @@ export class TokenSelectorParser {
     }
   }
 
-  private readIdentifier(): string {
+  protected readIdentifier(): string {
     const token = this.peekToken()
 
     if (!token || token.type !== 'ident') {
@@ -433,7 +229,7 @@ export class TokenSelectorParser {
     return token.value.toString()
   }
 
-  private readAttributeNameWithNamespace(): {
+  protected readAttributeNameWithNamespace(): {
     name: string
     namespace: LocalNamespaceConstraint | null
   } {
@@ -505,7 +301,7 @@ export class TokenSelectorParser {
     }
   }
 
-  private readFunctionContentSource(): string {
+  protected readPseudoFunctionContentSource(): string {
     const tokens: TokenOrValue[] = []
     let depth = 1
 
@@ -542,7 +338,7 @@ export class TokenSelectorParser {
     throw new Error('Unterminated pseudo selector function.')
   }
 
-  private consumeWhitespace(): boolean {
+  protected consumeWhitespace(): boolean {
     const start = this.index
     while (this.peekTokenType() === 'white-space') {
       this.index++
@@ -550,13 +346,7 @@ export class TokenSelectorParser {
     return this.index > start
   }
 
-  private skipWhitespace(): void {
-    while (this.consumeWhitespace() || this.consumeComment()) {
-      continue
-    }
-  }
-
-  private consumeComment(): boolean {
+  protected consumeComment(): boolean {
     if (this.peekTokenType() === 'comment') {
       this.index++
       return true
@@ -588,20 +378,62 @@ export class TokenSelectorParser {
     return token ? token.type : undefined
   }
 
-  private isDone(): boolean {
+  protected isDone(): boolean {
     return this.index >= this.tokens.length
   }
-}
 
-function isStandardPseudoClassFunction(name: string): boolean {
-  return (
-    name === 'lang' ||
-    name === 'dir' ||
-    name === 'nth-child' ||
-    name === 'nth-last-child' ||
-    name === 'nth-col' ||
-    name === 'nth-last-col' ||
-    name === 'nth-of-type' ||
-    name === 'nth-last-of-type'
-  )
+  protected parseNestedSelectorList(): SelectorList {
+    const selectors = this.parseSelectorList('close-parenthesis')
+    this.expectTokenType('close-parenthesis')
+    return selectors
+  }
+
+  protected parseSelectorListFromSource(source: string): SelectorList {
+    return new StringSelectorParser(source, this.options).parseSelectorList()
+  }
+
+  protected expectAttributeStart(): void {
+    this.expectTokenType('square-bracket-block')
+  }
+
+  protected expectAttributeEnd(): void {
+    this.expectTokenType('close-square-bracket')
+  }
+
+  protected expectPseudoStart(): void {
+    this.expectTokenType('colon')
+  }
+
+  protected consumePseudoElementMarker(): boolean {
+    return this.consumeTokenType('colon')
+  }
+
+  protected beginPseudoFunctionArguments(): boolean {
+    const functionToken = this.peekToken()
+    if (!functionToken || functionToken.type !== 'function') {
+      return false
+    }
+    this.index++
+    return true
+  }
+
+  protected isAtSelectorListBoundary(endType?: Token['type']): boolean {
+    const tokenType = this.peekTokenType()
+    return (
+      tokenType == null ||
+      tokenType === 'comma' ||
+      (!!endType && tokenType === endType)
+    )
+  }
+
+  protected consumeSelectorListSeparator(): boolean {
+    return this.consumeTokenType('comma')
+  }
+
+  protected markSelectorStart(): void {}
+
+  protected recordParsedSelectorSource(
+    _selector: Selector,
+    _marker: void,
+  ): void {}
 }

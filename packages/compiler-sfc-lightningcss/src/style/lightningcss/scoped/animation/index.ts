@@ -1,7 +1,7 @@
 import type { RawSourceMap } from '@vue/compiler-core'
 import MagicString from 'magic-string'
 import merge from 'merge-source-map'
-import { parseCssBlockTree } from '@vue/lightningcss-lexer'
+import { parseCssBlockTree } from '@vue/lightningcss-utils'
 import { rewriteAnimationDeclarationsInBlock } from './declarations'
 import { rewriteKeyframesPreludes } from './keyframes'
 

@@ -1,5 +1,5 @@
 import type { RawSourceMap } from '@vue/compiler-core'
-import { type CssBlockNode, parseCssBlockTree } from '@vue/lightningcss-lexer'
+import { type CssBlockNode, parseCssBlockTree } from '@vue/lightningcss-utils'
 import MagicString from 'magic-string'
 import merge from 'merge-source-map'
 import { warnOnce } from '../../../warn'

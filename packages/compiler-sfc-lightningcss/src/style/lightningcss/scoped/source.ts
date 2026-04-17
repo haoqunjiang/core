@@ -4,7 +4,7 @@ import {
   scopeSelectorPrelude,
   stringifySelector,
   walkCssBlockPreludes,
-} from '@vue/lightningcss-lexer'
+} from '@vue/lightningcss-utils'
 import type { RawSourceMap } from '@vue/compiler-core'
 import MagicString from 'magic-string'
 import merge from 'merge-source-map'
