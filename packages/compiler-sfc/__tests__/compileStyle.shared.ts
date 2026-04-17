@@ -46,7 +46,12 @@ function expectCodeToContain(code: string, expected: string) {
 export function runSharedStyleCompileTests(
   label: string,
   compileStyleImpl: CompileStyleImpl,
+  options: {
+    legacyVueScopedSyntax?: boolean
+  } = {},
 ): void {
+  const legacyVueScopedSyntax = options.legacyVueScopedSyntax ?? true
+
   function compileScoped(
     source: string,
     options?: Partial<SFCStyleCompileOptions>,
@@ -178,22 +183,10 @@ color: red;
       expectCodeToContain(code, `[data-v-test]::selection {`)
     })
 
-    test('::v-deep', () => {
+    test(':deep()', () => {
       expectCodeToContain(
         compileScoped(`:deep(.foo) { color: red; }`),
         `[data-v-test] .foo { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`::v-deep(.foo) { color: red; }`),
-        `[data-v-test] .foo { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`::v-deep(.foo .bar) { color: red; }`),
-        `[data-v-test] .foo .bar { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`.baz .qux ::v-deep(.foo .bar) { color: red; }`),
-        `.baz .qux[data-v-test] .foo .bar { color: red;`,
       )
       expectCodeToContain(
         compileScoped(`:is(.foo :deep(.bar)) { color: red; }`),
@@ -211,45 +204,72 @@ color: red;
       expect(code).toContain(`[data-v-test] .foo .bar`)
     })
 
-    test('::v-slotted', () => {
+    if (legacyVueScopedSyntax) {
+      test('legacy ::v-deep()', () => {
+        expectCodeToContain(
+          compileScoped(`::v-deep(.foo) { color: red; }`),
+          `[data-v-test] .foo { color: red;`,
+        )
+        expectCodeToContain(
+          compileScoped(`::v-deep(.foo .bar) { color: red; }`),
+          `[data-v-test] .foo .bar { color: red;`,
+        )
+        expectCodeToContain(
+          compileScoped(`.baz .qux ::v-deep(.foo .bar) { color: red; }`),
+          `.baz .qux[data-v-test] .foo .bar { color: red;`,
+        )
+      })
+    }
+
+    test(':slotted()', () => {
       expectCodeToContain(
         compileScoped(`:slotted(.foo) { color: red; }`),
         `.foo[data-v-test-s] { color: red;`,
       )
-      expectCodeToContain(
-        compileScoped(`::v-slotted(.foo) { color: red; }`),
-        `.foo[data-v-test-s] { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`::v-slotted(.foo .bar) { color: red; }`),
-        `.foo .bar[data-v-test-s] { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`.baz .qux ::v-slotted(.foo .bar) { color: red; }`),
-        `.baz .qux .foo .bar[data-v-test-s] { color: red;`,
-      )
     })
 
-    test('::v-global', () => {
+    if (legacyVueScopedSyntax) {
+      test('legacy ::v-slotted()', () => {
+        expectCodeToContain(
+          compileScoped(`::v-slotted(.foo) { color: red; }`),
+          `.foo[data-v-test-s] { color: red;`,
+        )
+        expectCodeToContain(
+          compileScoped(`::v-slotted(.foo .bar) { color: red; }`),
+          `.foo .bar[data-v-test-s] { color: red;`,
+        )
+        expectCodeToContain(
+          compileScoped(`.baz .qux ::v-slotted(.foo .bar) { color: red; }`),
+          `.baz .qux .foo .bar[data-v-test-s] { color: red;`,
+        )
+      })
+    }
+
+    test(':global()', () => {
       expectCodeToContain(
         compileScoped(`:global(.foo) { color: red; }`),
         `.foo { color: red;`,
       )
-      expectCodeToContain(
-        compileScoped(`::v-global(.foo) { color: red; }`),
-        `.foo { color: red;`,
-      )
-      expectCodeToContain(
-        compileScoped(`::v-global(.foo .bar) { color: red; }`),
-        `.foo .bar { color: red;`,
-      )
-
-      const code = compileScoped(
-        `.baz .qux ::v-global(.foo .bar) { color: red; }`,
-      )
-      expectCodeToContain(code, `.foo .bar { color: red;`)
-      expect(normalizeCssOutput(code)).not.toContain(`.baz .qux`)
     })
+
+    if (legacyVueScopedSyntax) {
+      test('legacy ::v-global()', () => {
+        expectCodeToContain(
+          compileScoped(`::v-global(.foo) { color: red; }`),
+          `.foo { color: red;`,
+        )
+        expectCodeToContain(
+          compileScoped(`::v-global(.foo .bar) { color: red; }`),
+          `.foo .bar { color: red;`,
+        )
+
+        const code = compileScoped(
+          `.baz .qux ::v-global(.foo .bar) { color: red; }`,
+        )
+        expectCodeToContain(code, `.foo .bar { color: red;`)
+        expect(normalizeCssOutput(code)).not.toContain(`.baz .qux`)
+      })
+    }
 
     test(':is() and :where() with multiple selectors', () => {
       expect(

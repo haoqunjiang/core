@@ -9,7 +9,7 @@ import {
   hoistNestedAtRuleBlock,
   isDeclarationOnlyAtRuleSubtree,
 } from './atRules'
-import { preludeIsPureGlobalCarrier } from './carriers'
+import { preludeIsPureGlobalCarrier } from '../scopeCarriers'
 import type { NestedScopeContext } from './deepContext'
 import { analyzeSelectorNestingContext } from './deepContext'
 import {

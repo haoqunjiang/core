@@ -2,52 +2,37 @@ import type {
   Selector,
   SelectorComponent,
   SelectorList,
-  TokenOrValue,
 } from 'lightningcss'
 import { extend } from '@vue/shared'
 import { parseSelectorListFromTokens } from '@vue/lightningcss-utils'
-import { warn } from '../../../warn'
+import type { ScopeCarrierKind } from '../scopeCarriers'
+import {
+  isScopeCarrierSelector,
+  scopeCarrierParserOptions,
+} from '../scopeCarriers'
 import {
   cloneAttribute,
   cloneCombinator,
   isCombinator,
-  isDescendantCombinator,
 } from './context'
 import { isScopeContainer, isSelectorContainer } from './selectorDirect'
 import { placeScopeAttributes } from './selectorInject'
 import type {
   ExpandedScopedSelector,
-  PseudoClassSelector,
-  PseudoElementSelector,
   ScopedSelectorHelpers,
   SelectorContainerSelector,
 } from './types'
-import {
-  type VueScopeCarrierKind,
-  getVueScopeCarrierKind,
-  vueScopeParserOptions,
-} from './vueScope'
 
 interface ScopeCarrier {
-  kind: VueScopeCarrierKind
+  kind: ScopeCarrierKind
   selectors: SelectorList
-}
-
-type CustomFunctionSelector = (PseudoClassSelector | PseudoElementSelector) & {
-  arguments: TokenOrValue[]
-  kind: 'custom-function'
-  name: string
 }
 
 type ExpandedSelectorStates = ExpandedScopedSelector[]
 
 export function canUseDirectScopeRewrite(selector: Selector): boolean {
   for (const component of selector) {
-    if (
-      isDeepCombinator(component) ||
-      isDeprecatedVueDeepCombinator(component) ||
-      hasScopeCarrier(component)
-    ) {
+    if (isScopeCarrierSelector(component)) {
       return false
     }
 
@@ -91,24 +76,6 @@ export function lowerScopeCarriers(
       }
 
       results = expandDeepCarrier(results, carrier, helpers)
-      continue
-    }
-
-    if (isDeepCombinator(component)) {
-      warn(
-        `the >>> and /deep/ combinators have been deprecated. ` +
-          `Use :deep() instead.`,
-      )
-      results = appendDeprecatedDeepCombinator(results, helpers)
-      continue
-    }
-
-    if (isDeprecatedVueDeepCombinator(component)) {
-      warn(
-        `::v-deep usage as a combinator has been deprecated. ` +
-          `Use :deep(<inner-selector>) instead of ::v-deep <inner-selector>.`,
-      )
-      results = appendDeprecatedVueDeepPseudo(results, helpers)
       continue
     }
 
@@ -199,34 +166,6 @@ function expandDeepCarrier(
   return expanded
 }
 
-function appendDeprecatedDeepCombinator(
-  results: ExpandedSelectorStates,
-  helpers: ScopedSelectorHelpers,
-): ExpandedSelectorStates {
-  for (const state of results) {
-    state.deep = true
-    state.selector.push(
-      cloneAttribute(helpers.deepMarker),
-      cloneCombinator(helpers.descendantCombinator),
-    )
-  }
-  return results
-}
-
-function appendDeprecatedVueDeepPseudo(
-  results: ExpandedSelectorStates,
-  helpers: ScopedSelectorHelpers,
-): ExpandedSelectorStates {
-  for (const state of results) {
-    if (isDescendantCombinator(state.selector[state.selector.length - 1])) {
-      state.selector.pop()
-    }
-    state.selector.push(cloneAttribute(helpers.deepMarker))
-    state.deep = true
-  }
-  return results
-}
-
 function appendSelectorContainer(
   results: ExpandedSelectorStates,
   component: SelectorContainerSelector,
@@ -265,63 +204,20 @@ function appendPlainComponent(
   return results
 }
 
-function hasScopeCarrier(component: SelectorComponent): boolean {
-  return (
-    isCustomFunctionSelector(component) &&
-    getVueScopeCarrierKind(component.name) != null
-  )
-}
-
 function getScopeCarrier(component: SelectorComponent): ScopeCarrier | null {
-  if (!isCustomFunctionSelector(component)) {
-    return null
-  }
-
-  const kind = getVueScopeCarrierKind(component.name)
-  if (!kind) {
+  if (!isScopeCarrierSelector(component)) {
     return null
   }
 
   return {
-    kind,
-    selectors: hasParsedSelectors(component)
+    kind: component.name,
+    selectors: Array.isArray(component.selectors)
       ? component.selectors
       : parseSelectorListFromTokens(
           component.arguments,
-          vueScopeParserOptions,
+          scopeCarrierParserOptions,
         ),
   }
-}
-
-function isCustomFunctionSelector(
-  component: SelectorComponent,
-): component is CustomFunctionSelector {
-  return (
-    (component.type === 'pseudo-class' ||
-      component.type === 'pseudo-element') &&
-    component.kind === 'custom-function'
-  )
-}
-
-function hasParsedSelectors(
-  component: CustomFunctionSelector,
-): component is CustomFunctionSelector & { selectors: SelectorList } {
-  return Array.isArray((component as { selectors?: unknown }).selectors)
-}
-
-function isDeprecatedVueDeepCombinator(component: SelectorComponent): boolean {
-  return (
-    component.type === 'pseudo-element' &&
-    component.kind === 'custom' &&
-    component.name === 'v-deep'
-  )
-}
-
-function isDeepCombinator(component: SelectorComponent): boolean {
-  return (
-    component.type === 'combinator' &&
-    (component.value === 'deep' || component.value === 'deep-descendant')
-  )
 }
 
 function appendDeepSelector(

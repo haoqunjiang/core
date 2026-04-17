@@ -20,13 +20,8 @@ export function analyzeLightningCssStyle(
     hasNestedStyleRules: false,
     hasScopedSelectorSpecials:
       source.includes(':deep(') ||
-      source.includes('::v-deep') ||
-      source.includes('>>>') ||
-      source.includes('/deep/') ||
       source.includes(':slotted(') ||
-      source.includes('::v-slotted') ||
-      source.includes(':global(') ||
-      source.includes('::v-global'),
+      source.includes(':global('),
     hasVBind: hasCssVarsBinding(source),
     keyframes: Object.create(null),
   }

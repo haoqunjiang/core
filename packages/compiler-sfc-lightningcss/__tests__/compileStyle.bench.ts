@@ -21,9 +21,9 @@ const simpleScopedSource = Array.from(
 const vueScopedFunctionSource = Array.from({ length: 40 }, (_, index) =>
   [
     `.root-${index} :deep(.inner-${index} .copy-${index}) { color: red; }`,
-    `.root-${index} ::v-slotted(.slot-${index} .leaf-${index}) { color: blue; }`,
+    `.root-${index} :slotted(.slot-${index} .leaf-${index}) { color: blue; }`,
     `:is(.root-${index} :deep(.branch-${index})) { color: green; }`,
-    `.root-${index} ::v-global(.external-${index} .leaf-${index}) { color: black; }`,
+    `.root-${index} :global(.external-${index} .leaf-${index}) { color: black; }`,
   ].join('\n'),
 ).join('\n')
 

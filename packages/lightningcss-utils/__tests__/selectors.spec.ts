@@ -286,26 +286,22 @@ describe('migrated from combinators.mjs', () => {
     },
   ])
 
-  runSupportedCases([
+  runErrorCases([
     {
-      name: 'piercing combinator',
+      name: 'legacy piercing combinator',
       input: '.a >>> .b',
-      expected: '.a >>> .b',
     },
     {
-      name: 'named combinators',
+      name: 'legacy named combinator',
       input: 'a /deep/ b',
-      expected: 'a /deep/ b',
     },
     {
-      name: 'named combinators with escapes',
+      name: 'legacy named combinator with escapes',
       input: 'a /dee\\p/ b',
-      expected: 'a /deep/ b',
     },
     {
-      name: 'named combinators with escapes and uppercase',
+      name: 'legacy named combinator with escapes and uppercase',
       input: 'a /DeE\\p/ b',
-      expected: 'a /deep/ b',
     },
   ])
 })

@@ -1,6 +1,9 @@
 import type { Selector, SelectorComponent } from 'lightningcss'
 import { parseSelectorListFromString } from '@vue/lightningcss-utils'
-import { vueScopeParserOptions } from '../scoped/vueScope'
+import {
+  isScopeCarrierSelector,
+  scopeCarrierParserOptions,
+} from '../scopeCarriers'
 
 export type NestedScopeContext = 'deep' | 'none' | 'slotted'
 
@@ -29,7 +32,7 @@ export function analyzeSelectorNestingContext(
 ): NestedScopeAnalysis {
   try {
     return collapseNestedScopeContexts(
-      parseSelectorListFromString(prelude, vueScopeParserOptions).map(
+      parseSelectorListFromString(prelude, scopeCarrierParserOptions).map(
         selectorContainsDeepContext,
       ),
     )
@@ -47,11 +50,7 @@ function componentContainsDeepContext(
 ): NestedScopeAnalysis {
   switch (component.type) {
     case 'combinator':
-      return createNestedScopeAnalysis(
-        component.value === 'deep' || component.value === 'deep-descendant'
-          ? 'deep'
-          : 'none',
-      )
+      return none()
     case 'pseudo-class':
       return analyzePseudoClassContext(component)
     case 'pseudo-element':
@@ -64,9 +63,14 @@ function componentContainsDeepContext(
 function analyzePseudoClassContext(
   component: Extract<SelectorComponent, { type: 'pseudo-class' }>,
 ): NestedScopeAnalysis {
-  const carrierContext = getVueCarrierContext(component)
-  if (carrierContext) {
-    return createNestedScopeAnalysis(carrierContext)
+  if (isScopeCarrierSelector(component)) {
+    return createNestedScopeAnalysis(
+      component.name === 'deep'
+        ? 'deep'
+        : component.name === 'slotted'
+          ? 'slotted'
+          : 'none',
+    )
   }
 
   switch (component.kind) {
@@ -93,11 +97,6 @@ function analyzePseudoClassContext(
 function analyzePseudoElementContext(
   component: Extract<SelectorComponent, { type: 'pseudo-element' }>,
 ): NestedScopeAnalysis {
-  const carrierContext = getVueCarrierContext(component)
-  if (carrierContext) {
-    return createNestedScopeAnalysis(carrierContext)
-  }
-
   if (component.kind === 'slotted') {
     // Standard shadow-DOM `::slotted()` is not Vue's slot carrier syntax.
     // It stays an ordinary selector component and does not put nested rules
@@ -107,58 +106,12 @@ function analyzePseudoElementContext(
 
   return none()
 }
-
-function getVueCarrierContext(
-  component:
-    | Extract<SelectorComponent, { type: 'pseudo-class' }>
-    | Extract<SelectorComponent, { type: 'pseudo-element' }>,
-): NestedScopeContext | null {
-  if (
-    component.kind === 'custom-function' &&
-    (component.name === 'deep' || component.name === 'v-deep')
-  ) {
-    return 'deep'
-  }
-
-  if (
-    component.kind === 'custom-function' &&
-    (component.name === 'slotted' || component.name === 'v-slotted')
-  ) {
-    return 'slotted'
-  }
-
-  if (
-    component.type === 'pseudo-element' &&
-    component.kind === 'custom' &&
-    component.name === 'v-deep'
-  ) {
-    return 'deep'
-  }
-
-  if (
-    component.type === 'pseudo-element' &&
-    component.kind === 'custom' &&
-    component.name === 'v-slotted'
-  ) {
-    return 'slotted'
-  }
-
-  return null
-}
-
 function detectFallbackNestingContext(prelude: string): NestedScopeContext {
-  if (
-    prelude.includes(':deep(') ||
-    prelude.includes('::v-deep') ||
-    prelude.includes('>>>') ||
-    prelude.includes('/deep/')
-  ) {
+  if (prelude.includes(':deep(')) {
     return 'deep'
   }
 
-  return prelude.includes(':slotted(') || prelude.includes('::v-slotted')
-    ? 'slotted'
-    : 'none'
+  return prelude.includes(':slotted(') ? 'slotted' : 'none'
 }
 
 function none(): NestedScopeAnalysis {

@@ -3,7 +3,9 @@ import { compileStyleWithLightningCss } from '../src/compileStyle'
 import { runSharedStyleCompileTests } from '../../compiler-sfc/__tests__/compileStyle.shared'
 import { Features, transform } from 'lightningcss'
 
-runSharedStyleCompileTests('Lightning CSS', compileStyleWithLightningCss)
+runSharedStyleCompileTests('Lightning CSS', compileStyleWithLightningCss, {
+  legacyVueScopedSyntax: false,
+})
 
 describe('compileStyleWithLightningCss', () => {
   function normalizeCssOutput(code: string) {
@@ -59,6 +61,33 @@ describe('compileStyleWithLightningCss', () => {
         postcssOptions: { parser: {} },
       }),
     ).toThrow(/postcssOptions/)
+  })
+
+  test.each([
+    ['::v-deep alias', `::v-deep(.foo) { color: red; }`, /:deep/],
+    [':v-deep alias', `:v-deep(.foo) { color: red; }`, /:deep/],
+    ['::v-slotted alias', `::v-slotted(.foo) { color: red; }`, /:slotted/],
+    [':v-slotted alias', `:v-slotted(.foo) { color: red; }`, /:slotted/],
+    ['::v-global alias', `::v-global(.foo) { color: red; }`, /:global/],
+    [':v-global alias', `:v-global(.foo) { color: red; }`, /:global/],
+    ['>>> combinator', `.foo >>> .bar { color: red; }`, /:deep/],
+    ['/deep/ combinator', `.foo /deep/ .bar { color: red; }`, /:deep/],
+    [
+      '::v-deep combinator',
+      `.foo ::v-deep .bar { color: red; }`,
+      /:deep/,
+    ],
+  ])('rejects legacy scoped syntax: %s', (_label, source, expected) => {
+    const result = compileStyleWithLightningCss({
+      source,
+      filename: 'test.css',
+      id: 'data-v-test',
+      scoped: true,
+    })
+
+    expect(result.code).toBe('')
+    expect(result.errors).toHaveLength(1)
+    expect(String(result.errors[0])).toMatch(expected)
   })
 
   test('supports postcss map output options', () => {

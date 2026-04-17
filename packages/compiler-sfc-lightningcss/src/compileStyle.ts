@@ -27,6 +27,7 @@ import {
   scopeLightningCssSource,
   scopeLightningCssSourceWithMap,
 } from './style/lightningcss/scoped/source'
+import { findLegacyVueScopedSyntaxError } from './style/lightningcss/scoped/legacy'
 import { createLightningCssStyleVisitor } from './style/lightningcss/visitor'
 
 export type {
@@ -111,6 +112,12 @@ function compileStyleWithLightningCssImpl(
 
   const context = createStyleCompileContext(options)
   const state = createStyleCompileState(options, context)
+  const legacyScopedSyntaxError =
+    context.scoped && findLegacyVueScopedSyntaxError(state.source)
+  if (legacyScopedSyntaxError) {
+    state.errors.push(legacyScopedSyntaxError)
+    return finalizeStyleCompileFailure(state)
+  }
 
   rewriteCssVarsInState(state, context)
   normalizeNestedStylesInState(state, context)

@@ -343,7 +343,7 @@ class DirectSelectorPreludeScoper {
     const current = this.peek()
     if (current === '>' || current === '+' || current === '~') {
       if (current === '>' && this.source.startsWith('>>>', this.index)) {
-        return
+        throw new Error('Legacy >>> combinator syntax is not supported.')
       }
       const start = this.index
       this.index++
@@ -354,7 +354,7 @@ class DirectSelectorPreludeScoper {
     }
 
     if (current === '/' && this.source.startsWith('/deep/', this.index)) {
-      return
+      throw new Error('Legacy /deep/ combinator syntax is not supported.')
     }
   }
 

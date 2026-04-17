@@ -5,9 +5,9 @@ import {
 } from '@vue/lightningcss-utils'
 import type { RawSourceMap } from '@vue/compiler-core'
 import merge from 'merge-source-map'
+import { scopeCarrierParserOptions } from '../scopeCarriers'
 import { createScopedStyleTransformContext } from './context'
 import { appendRewrittenScopedSelectors } from './rewrite'
-import { vueScopeParserOptions } from './vueScope'
 
 export function scopeLightningCssSource(
   source: string,
@@ -20,7 +20,7 @@ export function scopeLightningCssSource(
     tryRewritePreludeDirect: hasScopedSelectorSpecials
       ? undefined
       : prelude => scopeSelectorPrelude(prelude, context.id),
-    parserOptions: vueScopeParserOptions,
+    parserOptions: scopeCarrierParserOptions,
     appendRewrittenSelectors: (selector, target) =>
       appendRewrittenScopedSelectors(selector, context, target),
   })
@@ -46,7 +46,7 @@ export function scopeLightningCssSourceWithMap(
       tryRewritePreludeDirect: hasScopedSelectorSpecials
         ? undefined
         : prelude => scopeSelectorPrelude(prelude, context.id),
-      parserOptions: vueScopeParserOptions,
+      parserOptions: scopeCarrierParserOptions,
       appendRewrittenSelectors: (selector, target) =>
         appendRewrittenScopedSelectors(selector, context, target),
     },

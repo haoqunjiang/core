@@ -66,6 +66,9 @@ Unsupported:
 - CSS Modules options outside the supported Lightning CSS subset, including
   `scopeBehaviour: 'global'`, function `generateScopedName`, `hashPrefix`,
   `exportGlobals`, and `globalModulePaths`
+- legacy scoped selector syntax such as `>>>`, `/deep/`, `::v-deep(...)`,
+  `::v-slotted(...)`, and `::v-global(...)`; use `:deep()`, `:slotted()`, and
+  `:global()` instead. These are good future codemod targets.
 - `trim: false`
 
 When those option shapes are needed, use `@vue/compiler-sfc`.
@@ -115,11 +118,6 @@ current PostCSS-based `@vue/compiler-sfc` implementation.
   `animation-name: Var(--anim, foo)` stay aligned with renamed local
   `@keyframes`. The current PostCSS compiler still uses lowercase-only
   heuristics for these cases.
-- Deprecated deep combinators such as `>>>`, `/deep/`, and combinator-style
-  `::v-deep` are still accepted for compatibility and continue to emit the
-  same warnings as Vue's existing scoped-style pipeline. They are legacy syntax
-  rather than a feature area we want to expand further, and are good
-  candidates for future codemods.
 
 ## Related Packages
 

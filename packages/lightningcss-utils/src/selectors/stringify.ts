@@ -185,10 +185,6 @@ function stringifyCombinator(
       return wrap('~')
     case 'column':
       return wrap('||')
-    case 'deep-descendant':
-      return wrap('>>>')
-    case 'deep':
-      return wrap('/deep/')
     default:
       return ''
   }

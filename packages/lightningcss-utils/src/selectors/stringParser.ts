@@ -129,8 +129,7 @@ export class StringSelectorParser extends SelectorParserBase<string, number> {
     | Extract<SelectorComponent, { type: 'combinator' }>
     | undefined {
     if (this.peek() === '>' && this.peek(1) === '>' && this.peek(2) === '>') {
-      this.index += 3
-      return createCombinator('deep-descendant')
+      throw new Error('Legacy >>> combinator syntax is not supported.')
     }
 
     const current = this.peek()
@@ -151,9 +150,8 @@ export class StringSelectorParser extends SelectorParserBase<string, number> {
       return createCombinator('column')
     }
     if (current === '/') {
-      const namedCombinator = this.readNamedCombinator()
-      if (namedCombinator) {
-        return namedCombinator
+      if (this.isLegacyDeepNamedCombinator()) {
+        throw new Error('Legacy /deep/ combinator syntax is not supported.')
       }
     }
   }
@@ -337,12 +335,10 @@ export class StringSelectorParser extends SelectorParserBase<string, number> {
     return value
   }
 
-  private readNamedCombinator():
-    | Extract<SelectorComponent, { type: 'combinator' }>
-    | undefined {
+  private isLegacyDeepNamedCombinator(): boolean {
     const start = this.index
     if (!this.consume('/')) {
-      return
+      return false
     }
 
     let name = ''
@@ -359,14 +355,15 @@ export class StringSelectorParser extends SelectorParserBase<string, number> {
 
     if (!this.consume('/')) {
       this.index = start
-      return
+      return false
     }
 
     if (name.toLowerCase() === 'deep') {
-      return createCombinator('deep')
+      return true
     }
 
     this.index = start
+    return false
   }
 
   protected readAttributeNameWithNamespace(): {
