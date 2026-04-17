@@ -134,16 +134,78 @@ describe('source-facing API', () => {
     expect(roots[0].children[1].normalizedPrelude).toBe('.baz')
   })
 
+  test('source walkers preserve brace-valued custom property declarations', () => {
+    const source = `
+.foo {
+  --theme: { color: red; };
+  color: blue;
+}
+`
+
+    const preludes: CssBlockPrelude[] = []
+    walkCssBlockPreludes(source, prelude => {
+      preludes.push(prelude)
+    })
+    expect(preludes.map(prelude => prelude.normalizedPrelude)).toEqual(['.foo'])
+
+    const roots = parseCssBlockTree(source)
+    expect(roots).toHaveLength(1)
+    expect(roots[0].normalizedPrelude).toBe('.foo')
+    expect(roots[0].children).toHaveLength(0)
+  })
+
+  test('source walkers keep nested rules after brace-valued custom properties with inner semicolons', () => {
+    const source = `
+.foo {
+  --theme: { color: red; };
+  .bar {
+    color: blue;
+  }
+}
+`
+
+    const preludes: CssBlockPrelude[] = []
+    walkCssBlockPreludes(source, prelude => {
+      preludes.push(prelude)
+    })
+    expect(preludes.map(prelude => prelude.normalizedPrelude)).toEqual([
+      '.foo',
+      '.bar',
+    ])
+
+    const roots = parseCssBlockTree(source)
+    expect(roots).toHaveLength(1)
+    expect(roots[0].normalizedPrelude).toBe('.foo')
+    expect(roots[0].children).toHaveLength(1)
+    expect(roots[0].children[0].normalizedPrelude).toBe('.bar')
+  })
+
   test('scopeSelectorPrelude rewrites simple selectors and recurses into containers', () => {
     expect(scopeSelectorPrelude('.foo, .bar', 'data-test')).toBe(
       '.foo[data-test], .bar[data-test]',
     )
+    expect(scopeSelectorPrelude('*:hover', 'data-test')).toBe(
+      '[data-test]:hover',
+    )
+    expect(scopeSelectorPrelude('*::before', 'data-test')).toBe(
+      '[data-test]::before',
+    )
     expect(scopeSelectorPrelude(':is(.foo, .bar)', 'data-test')).toBe(
       ':is(.foo[data-test], .bar[data-test])',
+    )
+    expect(scopeSelectorPrelude('* + .foo', 'data-test')).toBe(
+      '* + .foo[data-test]',
+    )
+    expect(scopeSelectorPrelude('* > .foo', 'data-test')).toBe(
+      '* > .foo[data-test]',
+    )
+    expect(scopeSelectorPrelude('* ~ .foo', 'data-test')).toBe(
+      '* ~ .foo[data-test]',
     )
   })
 
   test('scopeSelectorPrelude returns undefined for unsupported syntax', () => {
     expect(scopeSelectorPrelude('svg|a', 'data-test')).toBeUndefined()
+    expect(scopeSelectorPrelude('* + :hover', 'data-test')).toBeUndefined()
   })
 })

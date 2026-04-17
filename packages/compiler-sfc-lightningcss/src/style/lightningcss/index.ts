@@ -14,7 +14,6 @@ import {
   scopeLightningCssSelectorDirect,
   scopeLightningCssSelectorWithLexer,
 } from './scoped'
-import { rewriteLightningCssVarFunction } from './vars'
 
 export type SFCStyleLightningCSSSelector = LightningCssSelector
 export type SFCStyleLightningCSSSelectorList = LightningCssSelectorList
@@ -31,7 +30,7 @@ export interface SFCStyleLightningCSSOptions {
   scoped?: boolean
   /**
    * `true` when selector scoping already ran as a source rewrite, so the final
-   * visitor only needs to handle AST-oriented transforms such as `v-bind()` and
+   * visitor only needs to handle the remaining AST-oriented transforms such as
    * keyframe/animation rewriting.
    */
   selectorsScopedInSource?: boolean
@@ -43,7 +42,6 @@ export function createStyleLightningCSSVisitor(
   const {
     features,
     id,
-    isProd = false,
     scoped = false,
     selectorsScopedInSource = false,
   } = options
@@ -54,17 +52,8 @@ export function createStyleLightningCSSVisitor(
     features && features.hasScopedSelectorSpecials !== undefined
       ? features.hasScopedSelectorSpecials
       : true
-  const hasVBind =
-    features && features.hasVBind !== undefined ? features.hasVBind : true
   const keyframes = features ? features.keyframes : undefined
   const visitor: SFCStyleLightningCSSVisitor = {}
-
-  if (hasVBind) {
-    visitor.Function = createVarFunctionVisitor(
-      id.replace(/^data-v-/, ''),
-      isProd,
-    )
-  }
 
   if (!scoped) {
     return hasVisitorHooks(visitor) ? visitor : undefined
@@ -72,7 +61,7 @@ export function createStyleLightningCSSVisitor(
 
   // Selector scoping is optional here because the source phase can already
   // finish that work for the common fast path. The visitor still owns the
-  // AST-oriented pieces such as v-bind() and keyframe rewrites.
+  // AST-oriented keyframe and animation rewrites.
   if (!selectorsScopedInSource) {
     const context = createScopedStyleTransformContext({
       id,
@@ -121,28 +110,12 @@ function attachKeyframeVisitors(
   }
 
   if (hasAnimationDeclarations) {
-    visitor.Declaration = {
-      animation(declaration) {
-        return rewriteLightningCssAnimationDeclaration(
-          declaration as LightningCssDeclaration,
-          context,
-        ) as LightningCssDeclaration
-      },
-      'animation-name'(declaration) {
-        return rewriteLightningCssAnimationDeclaration(
-          declaration as LightningCssDeclaration,
-          context,
-        ) as LightningCssDeclaration
-      },
+    visitor.Declaration = declaration => {
+      return rewriteLightningCssAnimationDeclaration(
+        declaration as LightningCssDeclaration,
+        context,
+      ) as LightningCssDeclaration | void
     }
-  }
-}
-
-function createVarFunctionVisitor(id: string, isProd: boolean) {
-  return {
-    'v-bind'(fn: LightningCssFunction) {
-      return rewriteLightningCssVarFunction(fn, id, isProd)
-    },
   }
 }
 

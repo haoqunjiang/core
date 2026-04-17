@@ -18,11 +18,14 @@ const noInjectMarkerName = '__VUE_SCOPE_NO_INJECT__'
 export function createScopedStyleTransformContext(
   options: ScopedSelectorOptions,
 ): ScopedStyleTransformContext {
+  const shortId = options.id.replace(/^data-v-/, '')
+  const scopeId = `data-v-${shortId}`
+
   return {
-    helpers: createScopedSelectorHelpers(options.id),
-    id: options.id,
+    helpers: createScopedSelectorHelpers(scopeId),
+    id: scopeId,
     keyframes: Object.assign(Object.create(null), options.keyframes),
-    shortId: options.id.replace(/^data-v-/, ''),
+    shortId,
   }
 }
 

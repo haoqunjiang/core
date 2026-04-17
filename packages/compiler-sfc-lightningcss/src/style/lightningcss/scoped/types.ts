@@ -18,7 +18,12 @@ export type PseudoElementSelector = Extract<
 >
 export type ScopeInjectMode = 'none' | 'normal' | 'slot'
 
-export type ScopeContainerSelector = PseudoClassSelector & {
+export type SelectorContainerSelector = PseudoClassSelector & {
+  kind: 'has' | 'is' | 'not' | 'where'
+  selectors: SelectorList
+}
+
+export type ScopeContainerSelector = SelectorContainerSelector & {
   kind: 'is' | 'where'
   selectors: SelectorList
 }

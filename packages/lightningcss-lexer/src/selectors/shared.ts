@@ -10,6 +10,11 @@ import type {
 
 const parsedSelectorSourceKey = Symbol('parsedSelectorSource')
 
+interface ParsedSelectorSourceRecord {
+  fingerprint: string
+  source: string
+}
+
 export const simplePseudoClasses: ReadonlySet<string> = new Set([
   'active',
   'blank',
@@ -175,17 +180,32 @@ export function setParsedSelectorSource(
   selector: Selector,
   source: string,
 ): void {
-  ;(selector as Selector & { [parsedSelectorSourceKey]?: string })[
-    parsedSelectorSourceKey
-  ] = source
+  ;(
+    selector as Selector & {
+      [parsedSelectorSourceKey]?: ParsedSelectorSourceRecord
+    }
+  )[parsedSelectorSourceKey] = {
+    source,
+    fingerprint: JSON.stringify(selector),
+  }
 }
 
 export function getParsedSelectorSource(
   selector: Selector,
 ): string | undefined {
-  return (selector as Selector & { [parsedSelectorSourceKey]?: string })[
-    parsedSelectorSourceKey
-  ]
+  const record = (
+    selector as Selector & {
+      [parsedSelectorSourceKey]?: ParsedSelectorSourceRecord
+    }
+  )[parsedSelectorSourceKey]
+
+  if (!record) {
+    return
+  }
+
+  return record.fingerprint === JSON.stringify(selector)
+    ? record.source
+    : undefined
 }
 
 export type {

@@ -3,14 +3,14 @@ import { extend } from '@vue/shared'
 import { cloneAttribute, isDeepMarker, isNoInjectMarker } from './context'
 import {
   findInjectionAnchor,
-  isScopeContainer,
+  isSelectorContainer,
   stripLeadingUniversal,
 } from './selectorDirect'
 import type {
   ExpandedScopedSelector,
-  ScopeContainerSelector,
   ScopeInjectMode,
   ScopedSelectorHelpers,
+  SelectorContainerSelector,
 } from './types'
 
 export function applyScopeInjection(
@@ -19,10 +19,13 @@ export function applyScopeInjection(
   helpers: ScopedSelectorHelpers,
 ): ExpandedScopedSelector {
   const effectiveMode = hasNoInjectMarker(result.selector) ? 'none' : injectMode
-  const selector = stripLeadingUniversal(removeNoInjectMarkers(result.selector))
+  const selector = removeNoInjectMarkers(result.selector)
+  if (effectiveMode !== 'none') {
+    stripLeadingUniversal(selector)
+  }
   const anchorIndex = findInjectionAnchor(selector)
 
-  if (anchorIndex !== -1 && isScopeContainer(selector[anchorIndex])) {
+  if (anchorIndex !== -1 && isSelectorContainer(selector[anchorIndex])) {
     return injectScopeIntoContainer(
       result.deep,
       selector,
@@ -58,7 +61,7 @@ function injectScopeIntoContainer(
   helpers: ScopedSelectorHelpers,
 ): ExpandedScopedSelector {
   let nestedDeep = deep
-  const container = selector[anchorIndex] as ScopeContainerSelector
+  const container = selector[anchorIndex] as SelectorContainerSelector
   const nestedSelectors = container.selectors.map(nestedSelector => {
     const nestedResult = applyScopeInjection(
       {
@@ -75,7 +78,18 @@ function injectScopeIntoContainer(
   const rewrittenSelector = selector.slice()
   rewrittenSelector[anchorIndex] = extend({}, container, {
     selectors: nestedSelectors,
-  }) as ScopeContainerSelector
+  }) as SelectorContainerSelector
+
+  if (
+    injectMode !== 'none' &&
+    shouldInjectContainerScope(container, nestedSelectors, injectMode, helpers)
+  ) {
+    const scopedAttribute =
+      injectMode === 'slot'
+        ? cloneAttribute(helpers.slotScopeAttribute)
+        : cloneAttribute(helpers.scopeAttribute)
+    rewrittenSelector.splice(anchorIndex + 1, 0, scopedAttribute)
+  }
 
   return {
     deep: nestedDeep,
@@ -104,23 +118,89 @@ function removeNoInjectMarkers(selector: Selector): Selector {
 }
 
 function cleanupInternalSelector(selector: Selector): Selector {
-  const cleanedSelector = stripLeadingUniversal(
-    selector.filter(
-      component => !isDeepMarker(component) && !isNoInjectMarker(component),
-    ),
-  )
+  const cleanedComponents: Selector = []
+  for (const component of selector) {
+    if (isDeepMarker(component) || isNoInjectMarker(component)) {
+      continue
+    }
 
-  while (
-    cleanedSelector.length &&
-    cleanedSelector[0].type === 'combinator' &&
-    cleanedSelector[0].value === 'descendant'
-  ) {
-    cleanedSelector.shift()
+    if (isSelectorContainer(component)) {
+      cleanedComponents.push(
+        extend({}, component, {
+          selectors: component.selectors.map(nestedSelector =>
+            cleanupInternalSelector(nestedSelector),
+          ),
+        }) as SelectorContainerSelector,
+      )
+      continue
+    }
+
+    cleanedComponents.push(component)
   }
 
-  return cleanedSelector
+  while (
+    cleanedComponents.length &&
+    cleanedComponents[0].type === 'combinator' &&
+    cleanedComponents[0].value === 'descendant'
+  ) {
+    cleanedComponents.shift()
+  }
+
+  return cleanedComponents
 }
 
 function hasNoInjectMarker(selector: Selector): boolean {
   return selector.some(isNoInjectMarker)
+}
+
+function selectorContainsScopeAttribute(
+  selector: Selector,
+  scopeAttributeName: string,
+): boolean {
+  return selector.some(component => {
+    if (component.type === 'attribute') {
+      return component.name === scopeAttributeName
+    }
+
+    return (
+      isSelectorContainer(component) &&
+      component.selectors.some(nestedSelector =>
+        selectorContainsScopeAttribute(nestedSelector, scopeAttributeName),
+      )
+    )
+  })
+}
+
+function selectorSatisfiesContainerScope(
+  selector: Selector,
+  injectMode: ScopeInjectMode,
+  helpers: ScopedSelectorHelpers,
+): boolean {
+  if (injectMode === 'slot') {
+    return selectorContainsScopeAttribute(
+      selector,
+      helpers.slotScopeAttribute.name,
+    )
+  }
+
+  return (
+    selectorContainsScopeAttribute(selector, helpers.scopeAttribute.name) ||
+    selectorContainsScopeAttribute(selector, helpers.slotScopeAttribute.name)
+  )
+}
+
+function shouldInjectContainerScope(
+  container: SelectorContainerSelector,
+  nestedSelectors: Selector[],
+  injectMode: ScopeInjectMode,
+  helpers: ScopedSelectorHelpers,
+): boolean {
+  if (container.kind === 'has' || container.kind === 'not') {
+    return true
+  }
+
+  return nestedSelectors.some(
+    nestedSelector =>
+      !selectorSatisfiesContainerScope(nestedSelector, injectMode, helpers),
+  )
 }

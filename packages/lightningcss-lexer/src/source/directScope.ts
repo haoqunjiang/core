@@ -154,7 +154,13 @@ class DirectSelectorPreludeScoper {
 
     let stripStart = -1
     let stripEnd = -1
-    if (components[0] && components[0].kind === 'universal') {
+    if (
+      components[0] &&
+      components[0].kind === 'universal' &&
+      (!components[1] ||
+        components[1].kind !== 'combinator' ||
+        this.source.slice(components[1].start, components[1].end).trim() === '')
+    ) {
       stripStart = components[0].start - selectorStart
       stripEnd = components[0].end - selectorStart
       let sawWhitespace = false
@@ -180,6 +186,15 @@ class DirectSelectorPreludeScoper {
         stripEnd = cursor - selectorStart
       }
       selector = selector.slice(0, stripStart) + selector.slice(stripEnd)
+    }
+
+    if (
+      anchorIndex === -1 &&
+      stripStart === -1 &&
+      components[0] &&
+      components[0].kind === 'universal'
+    ) {
+      return
     }
 
     const adjustOffset = (offset: number): number => {

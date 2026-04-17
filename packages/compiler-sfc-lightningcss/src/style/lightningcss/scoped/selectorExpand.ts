@@ -13,14 +13,14 @@ import {
   isCombinator,
   isDescendantCombinator,
 } from './context'
-import { isScopeContainer } from './selectorDirect'
+import { isScopeContainer, isSelectorContainer } from './selectorDirect'
 import { applyScopeInjection } from './selectorInject'
 import type {
   ExpandedScopedSelector,
   PseudoClassSelector,
   PseudoElementSelector,
-  ScopeContainerSelector,
   ScopedSelectorHelpers,
+  SelectorContainerSelector,
 } from './types'
 import {
   type VueScopeCarrierKind,
@@ -51,7 +51,7 @@ export function canUseDirectScopeRewrite(selector: Selector): boolean {
       return false
     }
 
-    if (isScopeContainer(component)) {
+    if (isSelectorContainer(component)) {
       for (const nestedSelector of component.selectors) {
         if (!canUseDirectScopeRewrite(nestedSelector)) {
           return false
@@ -81,7 +81,8 @@ export function expandScopedSelectorSpecials(
       if (carrier.kind === 'global') {
         // `:global(...)` replaces the current selector branch rather than
         // extending it, so the outer prefix is intentionally discarded here.
-        return expandGlobalCarrier(carrier, helpers)
+        results = expandGlobalCarrier(carrier, helpers)
+        continue
       }
 
       if (carrier.kind === 'slotted') {
@@ -111,8 +112,8 @@ export function expandScopedSelectorSpecials(
       continue
     }
 
-    if (isScopeContainer(component)) {
-      results = appendScopeContainer(results, component, helpers)
+    if (isSelectorContainer(component)) {
+      results = appendSelectorContainer(results, component, helpers)
       continue
     }
 
@@ -226,9 +227,9 @@ function appendDeprecatedVueDeepPseudo(
   return results
 }
 
-function appendScopeContainer(
+function appendSelectorContainer(
   results: ExpandedSelectorStates,
-  component: ScopeContainerSelector,
+  component: SelectorContainerSelector,
   helpers: ScopedSelectorHelpers,
 ): ExpandedSelectorStates {
   let nestedDeep = false
@@ -243,10 +244,12 @@ function appendScopeContainer(
 
   const nextComponent = extend({}, component, {
     selectors: nestedSelectors,
-  }) as ScopeContainerSelector
+  }) as SelectorContainerSelector
 
   for (const state of results) {
-    state.deep ||= nestedDeep
+    if (isScopeContainer(component)) {
+      state.deep ||= nestedDeep
+    }
     state.selector.push(nextComponent)
   }
   return results

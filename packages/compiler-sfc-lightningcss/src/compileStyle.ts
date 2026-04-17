@@ -6,15 +6,28 @@ import type {
 import type { RawSourceMap } from '@vue/compiler-core'
 import type { CSSModuleExports, CSSModulesConfig } from 'lightningcss'
 import { camelize, extend } from '@vue/shared'
+import { createCompilerRequire } from './nodeRequire'
 import {
   type StylePreprocessor,
   type StylePreprocessorResults,
   processors,
 } from './style/preprocessors'
+import {
+  hasCssVarsBinding,
+  rewriteCssVarsInStyleSource,
+  rewriteCssVarsInStyleSourceWithMap,
+} from './style/cssVars'
 import { createStyleLightningCSSVisitor } from './style/lightningcss'
 import { analyzeStyleLightningCSSFeatures } from './style/lightningcss/features'
 import { normalizeNestedStyleBlocks } from './style/lightningcss/nesting'
-import { scopeLightningCssSource } from './style/lightningcss/sourceScope'
+import {
+  rewriteAnimationDeclarationsInStyleSource,
+  rewriteAnimationDeclarationsInStyleSourceWithMap,
+} from './style/lightningcss/scoped/animation'
+import {
+  scopeLightningCssSource,
+  scopeLightningCssSourceWithMap,
+} from './style/lightningcss/sourceScope'
 
 export type {
   SFCAsyncStyleCompileOptions,
@@ -83,17 +96,58 @@ function compileStyleWithLightningCssImpl(
   const modules = !!('modules' in options && options.modules)
   const modulesOptions =
     'modulesOptions' in options ? options.modulesOptions || {} : {}
-  const preprocessor = preprocessLang && processors[preprocessLang]
-  const preProcessedSource = preprocessor && preprocess(options, preprocessor)
-  let inputMap = preProcessedSource
-    ? preProcessedSource.map
-    : options.inMap || options.map
-  let source = preProcessedSource ? preProcessedSource.code : options.source
-  let features = analyzeStyleLightningCSSFeatures(source, id)
+  const shortId = id.replace(/^data-v-/, '')
+  const initialInputMap = options.inMap || options.map
   const sourceMap = shouldGenerateLightningCssSourceMap(
     postcssOptions,
-    inputMap as RawSourceMap | undefined,
+    initialInputMap as RawSourceMap | undefined,
   )
+  const preprocessor = preprocessLang && processors[preprocessLang]
+  const preProcessedSource =
+    preprocessor && preprocess(options, preprocessor, sourceMap)
+  let inputMap = preProcessedSource ? preProcessedSource.map : initialInputMap
+  let source = preProcessedSource ? preProcessedSource.code : options.source
+
+  if (hasCssVarsBinding(source)) {
+    if (sourceMap) {
+      const rewritten = rewriteCssVarsInStyleSourceWithMap(
+        source,
+        filename,
+        shortId,
+        isProd,
+        inputMap as RawSourceMap | undefined,
+      )
+      source = rewritten.code
+      inputMap = rewritten.map
+    } else {
+      source = rewriteCssVarsInStyleSource(source, shortId, isProd)
+    }
+  }
+
+  let features = analyzeStyleLightningCSSFeatures(source, id)
+
+  if (
+    scoped &&
+    features.hasAnimationDeclarations &&
+    Object.keys(features.keyframes).length
+  ) {
+    if (sourceMap) {
+      const rewritten = rewriteAnimationDeclarationsInStyleSourceWithMap(
+        source,
+        filename,
+        features.keyframes,
+        inputMap as RawSourceMap | undefined,
+      )
+      source = rewritten.code
+      inputMap = rewritten.map
+    } else {
+      const rewritten = rewriteAnimationDeclarationsInStyleSource(
+        source,
+        features.keyframes,
+      )
+      source = rewritten.code
+    }
+  }
 
   const errors: Error[] = []
   if (preProcessedSource && preProcessedSource.errors.length) {
@@ -106,9 +160,9 @@ function compileStyleWithLightningCssImpl(
   dependencies.delete(filename)
 
   try {
-    const { Features, transform } = loadLightningCss()
+    const { Features, transform } = loadLightningCss(filename)
     const cssModules = modules
-      ? createLightningCssModulesConfig(filename, modulesOptions)
+      ? createLightningCssModulesConfig(modulesOptions)
       : undefined
 
     if (scoped && features.hasNestedStyleRules) {
@@ -126,15 +180,27 @@ function compileStyleWithLightningCssImpl(
     let scopedSource = source
     // CSS modules rely on Lightning CSS understanding selectors such as
     // `:local(...)` and `:global(...)` directly, so the source-level scoped
-    // fast path is only used when CSS modules are disabled.
-    let selectorsScopedInSource = scoped && !sourceMap && !modules
+    // path is only used when CSS modules are disabled.
+    let selectorsScopedInSource = scoped && !modules
     if (selectorsScopedInSource) {
       try {
-        scopedSource = scopeLightningCssSource(
-          source,
-          id,
-          features.hasScopedSelectorSpecials,
-        )
+        if (sourceMap) {
+          const scopedResult = scopeLightningCssSourceWithMap(
+            source,
+            filename,
+            id,
+            features.hasScopedSelectorSpecials,
+            inputMap as RawSourceMap | undefined,
+          )
+          scopedSource = scopedResult.code
+          inputMap = scopedResult.map
+        } else {
+          scopedSource = scopeLightningCssSource(
+            source,
+            id,
+            features.hasScopedSelectorSpecials,
+          )
+        }
       } catch {
         selectorsScopedInSource = false
         scopedSource = source
@@ -305,22 +371,12 @@ function hasUnsupportedLightningCssModulePattern(pattern: string): boolean {
 }
 
 function createLightningCssModulesConfig(
-  filename: string,
   options: CSSModulesOptions,
 ): CSSModulesConfig {
-  return {
-    pattern:
-      typeof options.generateScopedName === 'string'
-        ? options.generateScopedName
-        : getDefaultLightningCssModulesPattern(filename),
-  }
-}
-
-function getDefaultLightningCssModulesPattern(filename: string): string {
-  const extensionIndex = filename.lastIndexOf('.')
-  const basename =
-    extensionIndex >= 0 ? filename.slice(0, extensionIndex) : filename
-  return basename.endsWith('.module') ? '[hash]_[local]' : '[hash]_[local]'
+  const { generateScopedName } = options
+  return typeof generateScopedName === 'string'
+    ? { pattern: generateScopedName }
+    : {}
 }
 
 function normalizeLightningCssModules(
@@ -333,9 +389,17 @@ function normalizeLightningCssModules(
 
   const localsConvention = options.localsConvention
   const modules: Record<string, string> = {}
+  const exportsByCompiledName = new Map(
+    Object.values(exports).map(value => [value.name, value] as const),
+  )
 
   for (const [originalName, value] of Object.entries(exports)) {
-    appendCssModuleExport(modules, originalName, value.name, localsConvention)
+    appendCssModuleExport(
+      modules,
+      originalName,
+      collectCssModuleExportNames(value, exportsByCompiledName).join(' '),
+      localsConvention,
+    )
   }
 
   return modules
@@ -373,9 +437,58 @@ function appendCssModuleExport(
   }
 }
 
+function collectCssModuleExportNames(
+  value: CSSModuleExports[string],
+  exportsByCompiledName: ReadonlyMap<string, CSSModuleExports[string]>,
+  visited = new Set<string>(),
+): string[] {
+  if (visited.has(value.name)) {
+    return []
+  }
+
+  visited.add(value.name)
+
+  const names = [value.name]
+
+  for (const reference of value.composes) {
+    if (reference.type === 'global') {
+      if (!names.includes(reference.name)) {
+        names.push(reference.name)
+      }
+      continue
+    }
+
+    if (reference.type === 'dependency') {
+      throw createUnsupportedStyleOptionError(
+        '`modules` with `composes: ... from ...` dependency references',
+      )
+    }
+
+    if (reference.type === 'local') {
+      const composedExport = exportsByCompiledName.get(reference.name)
+      const composedNames = composedExport
+        ? collectCssModuleExportNames(
+            composedExport,
+            exportsByCompiledName,
+            visited,
+          )
+        : [reference.name]
+
+      for (const composedName of composedNames) {
+        if (!names.includes(composedName)) {
+          names.push(composedName)
+        }
+      }
+    }
+  }
+
+  return names
+}
+
 function preprocess(
   options: SFCStyleCompileOptions,
   preprocessor: StylePreprocessor,
+  sourceMap: boolean,
 ): StylePreprocessorResults {
   if ((__ESM_BROWSER__ || __GLOBAL__) && !options.preprocessCustomRequire) {
     throw new Error(
@@ -390,6 +503,7 @@ function preprocess(
     options.inMap || options.map,
     extend(
       {
+        enableSourcemap: sourceMap,
         filename: options.filename,
       },
       options.preprocessOptions || null,
@@ -405,19 +519,18 @@ let _lightningcss:
     }
   | undefined
 
-function loadLightningCss() {
+function loadLightningCss(filename: string) {
   if (_lightningcss) {
     return _lightningcss
   }
 
   try {
-    // eslint-disable-next-line no-restricted-globals
-    return (_lightningcss = require('lightningcss'))
+    return (_lightningcss = createCompilerRequire(filename)('lightningcss'))
   } catch (err: any) {
     const message = err && typeof err.message === 'string' ? err.message : ''
     if (message && message.includes('Cannot find module')) {
       throw new Error(
-        '[@vue/compiler-sfc-lightningcss] `compileStyle` requires the peer dependency `lightningcss` to be installed.',
+        '[@vue/compiler-sfc-lightningcss] `compileStyle` requires the optional peer dependency `lightningcss` to be installed. Install it in the consuming project, for example with `pnpm add -D lightningcss`.',
       )
     }
     throw err

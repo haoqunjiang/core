@@ -74,6 +74,18 @@ function runErrorCases(cases: ErrorCase[]) {
   }
 }
 
+test('stringifySelector ignores cached raw source after selector mutation', () => {
+  const selectors = parseSelectorListFromString('.foo/* comment */.bar')
+  selectors[0].push({
+    type: 'attribute',
+    name: 'data-test',
+    namespace: null,
+    operation: null,
+  })
+
+  expect(stringifySelector(selectors[0])).toBe('.foo.bar[data-test]')
+})
+
 describe('migrated from tags.mjs', () => {
   runSupportedCases([
     {

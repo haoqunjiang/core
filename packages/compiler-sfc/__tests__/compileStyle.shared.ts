@@ -79,6 +79,18 @@ export function runSharedStyleCompileTests(
       )
     })
 
+    test('short scope ids are normalized to runtime scope attributes', () => {
+      const res = compileStyleImpl({
+        source: `.foo { color: red; }`,
+        filename: 'test.css',
+        id: 'test',
+        scoped: true,
+      })
+
+      expect(res.errors).toHaveLength(0)
+      expectCodeToContain(res.code, `.foo[data-v-test]`)
+    })
+
     test('descendent selector', () => {
       expectCodeToContain(
         compileScoped(`h1 .foo { color: red; }`),
@@ -405,6 +417,8 @@ export function runSharedCssModulesCompileTests(
   label: string,
   compileStyleAsyncImpl: CompileStyleAsyncImpl,
 ): void {
+  const sharedGenerateScopedName = '[name]__[local]__[hash]'
+
   describe(`${label} CSS modules`, () => {
     test('includes resulting classes object in result', async () => {
       const result = await compileStyleAsyncImpl({
@@ -413,6 +427,9 @@ export function runSharedCssModulesCompileTests(
         filename: 'test.css',
         id: 'test',
         modules: true,
+        modulesOptions: {
+          generateScopedName: sharedGenerateScopedName,
+        },
       })
 
       expect(result.modules).toBeDefined()
@@ -437,6 +454,22 @@ export function runSharedCssModulesCompileTests(
         fooBar: expect.stringMatching(/^test__foo-bar__/),
         bazQux: expect.stringMatching(/^test__baz-qux__/),
       })
+    })
+
+    test('includes locally composed class names in module exports', async () => {
+      const result = await compileStyleAsyncImpl({
+        source: '.base { color: red }\n.red { composes: base; color: blue }',
+        filename: 'test.css',
+        id: 'test',
+        modules: true,
+        modulesOptions: {
+          generateScopedName: sharedGenerateScopedName,
+        },
+      })
+
+      expect(result.modules).toBeDefined()
+      expect(result.modules!.base).toBeDefined()
+      expect(result.modules!.red).toContain(result.modules!.base)
     })
   })
 }

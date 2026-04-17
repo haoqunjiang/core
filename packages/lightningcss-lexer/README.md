@@ -14,6 +14,25 @@ This is a standalone package in the monorepo. It is used by `compiler-sfc`
 today, but its boundary is intentionally generic enough for other
 Lightning CSS-compatible source and selector transforms.
 
+## Dependency Contract
+
+`lightningcss` stays an optional peer on purpose.
+
+That lets downstream packages make Lightning CSS support opt-in instead of
+forcing every consumer to install it up front. The tradeoff is that the
+selector-facing public types in this package reference Lightning CSS selector
+types directly, so TypeScript consumers should install `lightningcss` when they
+type-check against this package surface.
+
+In practice:
+
+- runtime use of the source-facing helpers does not load `lightningcss`
+- selector-facing APIs and published `.d.ts` files assume `lightningcss` is
+  available for type resolution
+- packages that expose this lexer as an opt-in capability should surface a
+  clear install error at the point where Lightning CSS-backed behavior is
+  actually enabled
+
 ## Package Shape
 
 The package has one runtime entrypoint, but that entrypoint is organized around

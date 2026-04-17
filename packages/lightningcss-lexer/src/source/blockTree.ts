@@ -27,6 +27,8 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
   let segmentStart = 0
   let segmentHasComment = false
   let bracketDepth = 0
+  let customPropertyBraceDepth = 0
+  let customPropertyValue = false
   let parenDepth = 0
   let quote: '"' | "'" | undefined
 
@@ -75,13 +77,42 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
       continue
     }
 
+    if (
+      current === ':' &&
+      !customPropertyValue &&
+      isCustomPropertyDeclarationPrelude(source.slice(segmentStart, index))
+    ) {
+      customPropertyValue = true
+      continue
+    }
+
     if (parenDepth || bracketDepth) {
       continue
     }
 
+    if (customPropertyValue) {
+      if (current === '{') {
+        customPropertyBraceDepth++
+        continue
+      }
+
+      if (current === '}') {
+        if (customPropertyBraceDepth) {
+          customPropertyBraceDepth--
+          continue
+        }
+        customPropertyValue = false
+      }
+    }
+
     if (current === ';') {
+      if (customPropertyValue && customPropertyBraceDepth) {
+        continue
+      }
       segmentStart = index + 1
       segmentHasComment = false
+      customPropertyBraceDepth = 0
+      customPropertyValue = false
       continue
     }
 
@@ -112,6 +143,8 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
       stack.push(node)
       segmentStart = index + 1
       segmentHasComment = false
+      customPropertyBraceDepth = 0
+      customPropertyValue = false
       continue
     }
 
@@ -123,6 +156,8 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
       }
       segmentStart = index + 1
       segmentHasComment = false
+      customPropertyBraceDepth = 0
+      customPropertyValue = false
     }
   }
 
@@ -138,4 +173,8 @@ function getBlockKind(prelude: string): CssBlockKind {
 
 function normalizePrelude(prelude: string): string {
   return prelude.replace(/\/\*[\s\S]*?\*\//g, ' ').trim()
+}
+
+function isCustomPropertyDeclarationPrelude(prelude: string): boolean {
+  return normalizePrelude(prelude).startsWith('--')
 }
