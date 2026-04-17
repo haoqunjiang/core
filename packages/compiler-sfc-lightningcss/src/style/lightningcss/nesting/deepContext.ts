@@ -9,6 +9,16 @@ export interface NestedScopeAnalysis {
   hasMixedBranches: boolean
 }
 
+function createNestedScopeAnalysis(
+  context: NestedScopeContext,
+  hasMixedBranches = false,
+): NestedScopeAnalysis {
+  return {
+    context,
+    hasMixedBranches,
+  }
+}
+
 /**
  * Returns whether this selector places descendant nested rules into Vue's deep
  * context, meaning later source normalization should stop treating the current
@@ -24,162 +34,149 @@ export function analyzeSelectorNestingContext(
       ),
     )
   } catch {
-    if (
-      prelude.includes(':deep(') ||
-      prelude.includes('::v-deep') ||
-      prelude.includes('>>>') ||
-      prelude.includes('/deep/')
-    ) {
-      return {
-        context: 'deep',
-        hasMixedBranches: false,
-      }
-    }
-
-    return {
-      context:
-        prelude.includes(':slotted(') || prelude.includes('::v-slotted')
-          ? 'slotted'
-          : 'none',
-      hasMixedBranches: false,
-    }
+    return createNestedScopeAnalysis(detectFallbackNestingContext(prelude))
   }
 }
 
-export function selectorEstablishesNestingContext(
-  prelude: string,
-): NestedScopeContext {
-  return analyzeSelectorNestingContext(prelude).context
-}
-
 function selectorContainsDeepContext(selector: Selector): NestedScopeAnalysis {
-  return selector.reduce<NestedScopeAnalysis>(
-    (analysis, component) => {
-      const componentAnalysis = componentContainsDeepContext(component)
-      return {
-        context: combineNestedScopeContexts(
-          analysis.context,
-          componentAnalysis.context,
-        ),
-        hasMixedBranches:
-          analysis.hasMixedBranches || componentAnalysis.hasMixedBranches,
-      }
-    },
-    {
-      context: 'none',
-      hasMixedBranches: false,
-    },
-  )
+  return selector.reduce<NestedScopeAnalysis>(mergeNestedScopeAnalyses, none())
 }
 
 function componentContainsDeepContext(
   component: SelectorComponent,
 ): NestedScopeAnalysis {
-  if (component.type === 'combinator') {
-    return {
-      context:
+  switch (component.type) {
+    case 'combinator':
+      return createNestedScopeAnalysis(
         component.value === 'deep' || component.value === 'deep-descendant'
           ? 'deep'
           : 'none',
-      hasMixedBranches: false,
-    }
+      )
+    case 'pseudo-class':
+      return analyzePseudoClassContext(component)
+    case 'pseudo-element':
+      return analyzePseudoElementContext(component)
+    default:
+      return none()
+  }
+}
+
+function analyzePseudoClassContext(
+  component: Extract<SelectorComponent, { type: 'pseudo-class' }>,
+): NestedScopeAnalysis {
+  const carrierContext = getVueCarrierContext(component)
+  if (carrierContext) {
+    return createNestedScopeAnalysis(carrierContext)
   }
 
-  if (
-    component.type === 'pseudo-class' &&
-    component.kind === 'custom-function' &&
-    (component.name === 'deep' || component.name === 'v-deep')
-  ) {
-    return {
-      context: 'deep',
-      hasMixedBranches: false,
-    }
+  switch (component.kind) {
+    case 'is':
+    case 'where':
+      // `:is()` and `:where()` are selector containers used by nesting
+      // lowering, so deep/slot carriers inside their branches still establish
+      // the context seen by later nested descendants.
+      return collapseNestedScopeContexts(
+        component.selectors.map(selectorContainsDeepContext),
+      )
+    case 'has':
+    case 'not':
+      // These pseudos are selector containers, but a nested `:deep(...)` or
+      // `:slotted(...)` inside one of their argument branches does not make
+      // the outer rule itself a deep/slot scoping boundary for child nested
+      // rules.
+      return none()
+    default:
+      return none()
+  }
+}
+
+function analyzePseudoElementContext(
+  component: Extract<SelectorComponent, { type: 'pseudo-element' }>,
+): NestedScopeAnalysis {
+  const carrierContext = getVueCarrierContext(component)
+  if (carrierContext) {
+    return createNestedScopeAnalysis(carrierContext)
   }
 
-  if (
-    component.type === 'pseudo-class' &&
-    component.kind === 'custom-function' &&
-    (component.name === 'slotted' || component.name === 'v-slotted')
-  ) {
-    return {
-      context: 'slotted',
-      hasMixedBranches: false,
-    }
-  }
-
-  if (
-    component.type === 'pseudo-element' &&
-    ((component.kind === 'custom-function' &&
-      (component.name === 'deep' || component.name === 'v-deep')) ||
-      (component.kind === 'custom' && component.name === 'v-deep'))
-  ) {
-    return {
-      context: 'deep',
-      hasMixedBranches: false,
-    }
-  }
-
-  if (
-    component.type === 'pseudo-element' &&
-    ((component.kind === 'custom-function' &&
-      (component.name === 'slotted' || component.name === 'v-slotted')) ||
-      (component.kind === 'custom' && component.name === 'v-slotted'))
-  ) {
-    return {
-      context: 'slotted',
-      hasMixedBranches: false,
-    }
-  }
-
-  if (
-    component.type === 'pseudo-class' &&
-    (component.kind === 'is' || component.kind === 'where')
-  ) {
-    // `:is()` and `:where()` are selector containers used by nesting lowering,
-    // so deep/slot carriers inside their branches still establish the context
-    // seen by later nested descendants.
-    return collapseNestedScopeContexts(
-      component.selectors.map(selectorContainsDeepContext),
-    )
-  }
-
-  if (
-    component.type === 'pseudo-class' &&
-    (component.kind === 'has' || component.kind === 'not')
-  ) {
-    // These pseudos are selector containers, but a nested `:deep(...)` or
-    // `:slotted(...)` inside one of their argument branches does not make the
-    // outer rule itself a deep/slot scoping boundary for child nested rules.
-    return {
-      context: 'none',
-      hasMixedBranches: false,
-    }
-  }
-
-  if (
-    component.type === 'pseudo-class' &&
-    component.kind === 'host' &&
-    component.selectors
-  ) {
-    return {
-      context: 'none',
-      hasMixedBranches: false,
-    }
-  }
-
-  if (component.type === 'pseudo-element' && component.kind === 'slotted') {
+  if (component.kind === 'slotted') {
     // Standard shadow-DOM `::slotted()` is not Vue's slot carrier syntax.
     // It stays an ordinary selector component and does not put nested rules
     // into Vue's slot context.
-    return {
-      context: 'none',
-      hasMixedBranches: false,
-    }
+    return none()
   }
 
+  return none()
+}
+
+function getVueCarrierContext(
+  component:
+    | Extract<SelectorComponent, { type: 'pseudo-class' }>
+    | Extract<SelectorComponent, { type: 'pseudo-element' }>,
+): NestedScopeContext | null {
+  if (
+    component.kind === 'custom-function' &&
+    (component.name === 'deep' || component.name === 'v-deep')
+  ) {
+    return 'deep'
+  }
+
+  if (
+    component.kind === 'custom-function' &&
+    (component.name === 'slotted' || component.name === 'v-slotted')
+  ) {
+    return 'slotted'
+  }
+
+  if (
+    component.type === 'pseudo-element' &&
+    component.kind === 'custom' &&
+    component.name === 'v-deep'
+  ) {
+    return 'deep'
+  }
+
+  if (
+    component.type === 'pseudo-element' &&
+    component.kind === 'custom' &&
+    component.name === 'v-slotted'
+  ) {
+    return 'slotted'
+  }
+
+  return null
+}
+
+function detectFallbackNestingContext(prelude: string): NestedScopeContext {
+  if (
+    prelude.includes(':deep(') ||
+    prelude.includes('::v-deep') ||
+    prelude.includes('>>>') ||
+    prelude.includes('/deep/')
+  ) {
+    return 'deep'
+  }
+
+  return prelude.includes(':slotted(') || prelude.includes('::v-slotted')
+    ? 'slotted'
+    : 'none'
+}
+
+function none(): NestedScopeAnalysis {
+  return createNestedScopeAnalysis('none')
+}
+
+function mergeNestedScopeAnalyses(
+  analysis: NestedScopeAnalysis,
+  component: SelectorComponent,
+): NestedScopeAnalysis {
+  const componentAnalysis = componentContainsDeepContext(component)
   return {
-    context: 'none',
-    hasMixedBranches: false,
+    context: combineNestedScopeContexts(
+      analysis.context,
+      componentAnalysis.context,
+    ),
+    hasMixedBranches:
+      analysis.hasMixedBranches || componentAnalysis.hasMixedBranches,
   }
 }
 
@@ -201,20 +198,15 @@ function combineNestedScopeContexts(
 function collapseNestedScopeContexts(
   analyses: readonly NestedScopeAnalysis[],
 ): NestedScopeAnalysis {
-  const [first = { context: 'none', hasMixedBranches: false }, ...rest] =
-    analyses
+  const [first = none(), ...rest] = analyses
 
   if (rest.every(analysis => analysis.context === first.context)) {
-    return {
-      context: first.context,
-      hasMixedBranches:
-        first.hasMixedBranches ||
+    return createNestedScopeAnalysis(
+      first.context,
+      first.hasMixedBranches ||
         rest.some(analysis => analysis.hasMixedBranches),
-    }
+    )
   }
 
-  return {
-    context: 'none',
-    hasMixedBranches: true,
-  }
+  return createNestedScopeAnalysis('none', true)
 }
