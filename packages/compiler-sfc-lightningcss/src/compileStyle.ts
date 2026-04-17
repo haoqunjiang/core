@@ -21,8 +21,8 @@ import { createStyleLightningCSSVisitor } from './style/lightningcss'
 import { analyzeStyleLightningCSSFeatures } from './style/lightningcss/features'
 import { normalizeNestedStyleBlocks } from './style/lightningcss/nesting'
 import {
-  rewriteAnimationDeclarationsInStyleSource,
-  rewriteAnimationDeclarationsInStyleSourceWithMap,
+  rewriteNormalizedAnimationDeclarations,
+  rewriteNormalizedAnimationDeclarationsWithMap,
 } from './style/lightningcss/scoped/animation'
 import {
   scopeLightningCssSource,
@@ -126,29 +126,6 @@ function compileStyleWithLightningCssImpl(
 
   let features = analyzeStyleLightningCSSFeatures(source, id)
 
-  if (
-    scoped &&
-    features.hasAnimationDeclarations &&
-    Object.keys(features.keyframes).length
-  ) {
-    if (sourceMap) {
-      const rewritten = rewriteAnimationDeclarationsInStyleSourceWithMap(
-        source,
-        filename,
-        features.keyframes,
-        inputMap as RawSourceMap | undefined,
-      )
-      source = rewritten.code
-      inputMap = rewritten.map
-    } else {
-      const rewritten = rewriteAnimationDeclarationsInStyleSource(
-        source,
-        features.keyframes,
-      )
-      source = rewritten.code
-    }
-  }
-
   const errors: Error[] = []
   if (preProcessedSource && preProcessedSource.errors.length) {
     errors.push(...preProcessedSource.errors)
@@ -229,10 +206,35 @@ function compileStyleWithLightningCssImpl(
     )
 
     const result = transform(transformOptions)
+    let code = decodeCode(result.code)
+    let map = result.map ? JSON.parse(decodeCode(result.map)) : undefined
+
+    if (
+      scoped &&
+      features.hasAnimationDeclarations &&
+      Object.keys(features.keyframes).length
+    ) {
+      if (sourceMap) {
+        const rewritten = rewriteNormalizedAnimationDeclarationsWithMap(
+          code,
+          filename,
+          features.keyframes,
+          map,
+        )
+        code = rewritten.code
+        map = rewritten.map
+      } else {
+        const rewritten = rewriteNormalizedAnimationDeclarations(
+          code,
+          features.keyframes,
+        )
+        code = rewritten.code
+      }
+    }
 
     return {
-      code: decodeCode(result.code),
-      map: result.map ? JSON.parse(decodeCode(result.map)) : undefined,
+      code,
+      map,
       rawResult: undefined,
       errors,
       modules: modules

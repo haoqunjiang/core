@@ -1,7 +1,5 @@
 import type {
-  Declaration as LightningCssDeclaration,
   Function as LightningCssFunction,
-  Rule as LightningCssRule,
   Selector as LightningCssSelector,
   SelectorList as LightningCssSelectorList,
   Visitor as LightningCssVisitor,
@@ -9,8 +7,6 @@ import type {
 import type { SFCStyleLightningCSSFeatures } from './features'
 import {
   createScopedStyleTransformContext,
-  rewriteLightningCssAnimationDeclaration,
-  rewriteLightningCssKeyframesRule,
   scopeLightningCssSelectorDirect,
   scopeLightningCssSelectorWithLexer,
 } from './scoped'
@@ -30,8 +26,7 @@ export interface SFCStyleLightningCSSOptions {
   scoped?: boolean
   /**
    * `true` when selector scoping already ran as a source rewrite, so the final
-   * visitor only needs to handle the remaining AST-oriented transforms such as
-   * keyframe/animation rewriting.
+   * visitor only needs to handle any remaining selector-level transforms.
    */
   selectorsScopedInSource?: boolean
 }
@@ -45,9 +40,6 @@ export function createStyleLightningCSSVisitor(
     scoped = false,
     selectorsScopedInSource = false,
   } = options
-  const hasAnimationDeclarations = !!(
-    features && features.hasAnimationDeclarations
-  )
   const hasScopedSelectorSpecials =
     features && features.hasScopedSelectorSpecials !== undefined
       ? features.hasScopedSelectorSpecials
@@ -60,8 +52,7 @@ export function createStyleLightningCSSVisitor(
   }
 
   // Selector scoping is optional here because the source phase can already
-  // finish that work for the common fast path. The visitor still owns the
-  // AST-oriented keyframe and animation rewrites.
+  // finish that work for the common fast path.
   if (!selectorsScopedInSource) {
     const context = createScopedStyleTransformContext({
       id,
@@ -78,52 +69,11 @@ export function createStyleLightningCSSVisitor(
             selector as LightningCssSelector,
             context,
           )) as LightningCssSelector | LightningCssSelector[]
-
-    attachKeyframeVisitors(visitor, context, hasAnimationDeclarations)
     return visitor
   }
-
-  const context = createScopedStyleTransformContext({
-    id,
-    keyframes,
-  })
-  attachKeyframeVisitors(visitor, context, hasAnimationDeclarations)
   return hasVisitorHooks(visitor) ? visitor : undefined
 }
 
-function attachKeyframeVisitors(
-  visitor: SFCStyleLightningCSSVisitor,
-  context: ReturnType<typeof createScopedStyleTransformContext>,
-  hasAnimationDeclarations: boolean,
-): void {
-  if (!Object.keys(context.keyframes).length) {
-    return
-  }
-
-  visitor.Rule = {
-    keyframes(rule) {
-      return rewriteLightningCssKeyframesRule(
-        rule as Extract<LightningCssRule, { type: 'keyframes' }>,
-        context,
-      ) as LightningCssRule
-    },
-  }
-
-  if (hasAnimationDeclarations) {
-    visitor.Declaration = declaration => {
-      return rewriteLightningCssAnimationDeclaration(
-        declaration as LightningCssDeclaration,
-        context,
-      ) as LightningCssDeclaration | void
-    }
-  }
-}
-
 function hasVisitorHooks(visitor: SFCStyleLightningCSSVisitor): boolean {
-  return (
-    !!visitor.Declaration ||
-    !!visitor.Function ||
-    !!visitor.Rule ||
-    !!visitor.Selector
-  )
+  return !!visitor.Function || !!visitor.Rule || !!visitor.Selector
 }
