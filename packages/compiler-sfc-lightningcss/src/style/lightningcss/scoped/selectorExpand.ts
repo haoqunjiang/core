@@ -24,9 +24,9 @@ import type {
 } from './types'
 import {
   type VueScopeCarrierKind,
-  getVueScopedSelectorCarrierKind,
-  vueScopedSelectorParserOptions,
-} from '../vueScopedSelectors'
+  getVueScopeCarrierKind,
+  vueScopeParserOptions,
+} from './vueScope'
 
 interface ScopeCarrier {
   kind: VueScopeCarrierKind
@@ -268,7 +268,7 @@ function appendPlainComponent(
 function hasScopeCarrier(component: SelectorComponent): boolean {
   return (
     isCustomFunctionSelector(component) &&
-    getVueScopedSelectorCarrierKind(component.name) != null
+    getVueScopeCarrierKind(component.name) != null
   )
 }
 
@@ -277,7 +277,7 @@ function getScopeCarrier(component: SelectorComponent): ScopeCarrier | null {
     return null
   }
 
-  const kind = getVueScopedSelectorCarrierKind(component.name)
+  const kind = getVueScopeCarrierKind(component.name)
   if (!kind) {
     return null
   }
@@ -288,7 +288,7 @@ function getScopeCarrier(component: SelectorComponent): ScopeCarrier | null {
       ? component.selectors
       : parseSelectorListFromTokens(
           component.arguments,
-          vueScopedSelectorParserOptions,
+          vueScopeParserOptions,
         ),
   }
 }

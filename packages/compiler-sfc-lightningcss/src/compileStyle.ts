@@ -17,9 +17,8 @@ import {
   rewriteCssVarsInStyleSource,
   rewriteCssVarsInStyleSourceWithMap,
 } from './style/cssVars'
-import { createStyleLightningCSSVisitor } from './style/lightningcss'
-import { analyzeStyleLightningCSSFeatures } from './style/lightningcss/features'
-import { normalizeNestedStyleBlocks } from './style/lightningcss/nesting'
+import { analyzeLightningCssStyle } from './style/lightningcss/analysis'
+import { normalizeNestedStyleBlocks } from './style/lightningcss/nesting/normalize'
 import {
   rewriteNormalizedAnimationDeclarations,
   rewriteNormalizedAnimationDeclarationsWithMap,
@@ -27,7 +26,8 @@ import {
 import {
   scopeLightningCssSource,
   scopeLightningCssSourceWithMap,
-} from './style/lightningcss/sourceScope'
+} from './style/lightningcss/scoped/source'
+import { createLightningCssStyleVisitor } from './style/lightningcss/visitor'
 
 export type {
   SFCAsyncStyleCompileOptions,
@@ -124,7 +124,7 @@ function compileStyleWithLightningCssImpl(
     }
   }
 
-  let features = analyzeStyleLightningCSSFeatures(source, id)
+  let analysis = analyzeLightningCssStyle(source, id)
 
   const errors: Error[] = []
   if (preProcessedSource && preProcessedSource.errors.length) {
@@ -142,7 +142,7 @@ function compileStyleWithLightningCssImpl(
       ? createLightningCssModulesConfig(modulesOptions)
       : undefined
 
-    if (scoped && features.hasNestedStyleRules) {
+    if (scoped && analysis.hasNestedStyleRules) {
       const normalizedSource = normalizeNestedStyleBlocks(
         source,
         filename,
@@ -151,7 +151,7 @@ function compileStyleWithLightningCssImpl(
       )
       source = normalizedSource.code
       inputMap = normalizedSource.map
-      features = analyzeStyleLightningCSSFeatures(source, id)
+      analysis = analyzeLightningCssStyle(source, id)
     }
 
     let scopedSource = source
@@ -166,7 +166,7 @@ function compileStyleWithLightningCssImpl(
             source,
             filename,
             id,
-            features.hasScopedSelectorSpecials,
+            analysis.hasScopedSelectorSpecials,
             inputMap as RawSourceMap | undefined,
           )
           scopedSource = scopedResult.code
@@ -175,7 +175,7 @@ function compileStyleWithLightningCssImpl(
           scopedSource = scopeLightningCssSource(
             source,
             id,
-            features.hasScopedSelectorSpecials,
+            analysis.hasScopedSelectorSpecials,
           )
         }
       } catch {
@@ -194,15 +194,15 @@ function compileStyleWithLightningCssImpl(
         nonStandard: {
           deepSelectorCombinator: true,
         },
-        visitor: createStyleLightningCSSVisitor({
-          features,
+        visitor: createLightningCssStyleVisitor({
+          analysis,
           id,
           isProd,
           scoped,
           selectorsScopedInSource,
         }),
       },
-      features.hasNestedStyleRules ? { include: Features.Nesting } : null,
+      analysis.hasNestedStyleRules ? { include: Features.Nesting } : null,
     )
 
     const result = transform(transformOptions)
@@ -211,14 +211,14 @@ function compileStyleWithLightningCssImpl(
 
     if (
       scoped &&
-      features.hasAnimationDeclarations &&
-      Object.keys(features.keyframes).length
+      analysis.hasAnimationDeclarations &&
+      Object.keys(analysis.keyframes).length
     ) {
       if (sourceMap) {
         const rewritten = rewriteNormalizedAnimationDeclarationsWithMap(
           code,
           filename,
-          features.keyframes,
+          analysis.keyframes,
           map,
         )
         code = rewritten.code
@@ -226,7 +226,7 @@ function compileStyleWithLightningCssImpl(
       } else {
         const rewritten = rewriteNormalizedAnimationDeclarations(
           code,
-          features.keyframes,
+          analysis.keyframes,
         )
         code = rewritten.code
       }

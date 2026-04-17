@@ -4,8 +4,8 @@ export {
   compileStyleAsync,
   compileStyleWithLightningCss,
 } from './compileStyle'
-export { createStyleLightningCSSVisitor } from './style/lightningcss'
+export { createLightningCssStyleVisitor } from './style/lightningcss/visitor'
 export type {
-  SFCStyleLightningCSSOptions,
-  SFCStyleLightningCSSVisitor,
-} from './style/lightningcss'
+  LightningCssStyleVisitor,
+  LightningCssStyleVisitorOptions,
+} from './style/lightningcss/visitor'

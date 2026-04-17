@@ -1,15 +1,15 @@
 import { parseSelectorListFromString } from '@vue/lightningcss-lexer'
 import type { Selector, SelectorComponent } from 'lightningcss'
 import {
-  getVueScopedSelectorCarrierKind,
-  vueScopedSelectorParserOptions,
-} from '../vueScopedSelectors'
+  getVueScopeCarrierKind,
+  vueScopeParserOptions,
+} from '../scoped/vueScope'
 
 export function preludeIsPureGlobalCarrier(prelude: string): boolean {
   try {
     const selectors = parseSelectorListFromString(
       prelude,
-      vueScopedSelectorParserOptions,
+      vueScopeParserOptions,
     )
     return selectors.length > 0 && selectors.every(selectorIsPureGlobalCarrier)
   } catch {
@@ -26,6 +26,6 @@ function isVueGlobalCarrier(component: SelectorComponent): boolean {
     (component.type === 'pseudo-class' ||
       component.type === 'pseudo-element') &&
     component.kind === 'custom-function' &&
-    getVueScopedSelectorCarrierKind(component.name) === 'global'
+    getVueScopeCarrierKind(component.name) === 'global'
   )
 }

@@ -4,48 +4,48 @@ import type {
   SelectorList as LightningCssSelectorList,
   Visitor as LightningCssVisitor,
 } from 'lightningcss'
-import type { SFCStyleLightningCSSFeatures } from './features'
+import type { LightningCssStyleAnalysis } from './analysis'
+import { createScopedStyleTransformContext } from './scoped/context'
 import {
-  createScopedStyleTransformContext,
-  scopeLightningCssSelectorDirect,
-  scopeLightningCssSelectorWithLexer,
-} from './scoped'
+  rewriteScopedSelector,
+  rewriteSimpleScopedSelector,
+} from './scoped/rewrite'
 
-export type SFCStyleLightningCSSSelector = LightningCssSelector
-export type SFCStyleLightningCSSSelectorList = LightningCssSelectorList
-export type SFCStyleLightningCSSFunctionNode = LightningCssFunction
-export type SFCStyleLightningCSSVisitor = Pick<
+export type LightningCssStyleSelector = LightningCssSelector
+export type LightningCssStyleSelectorList = LightningCssSelectorList
+export type LightningCssStyleFunctionNode = LightningCssFunction
+export type LightningCssStyleVisitor = Pick<
   LightningCssVisitor<never>,
   'Declaration' | 'Function' | 'Rule' | 'Selector'
 >
 
-export interface SFCStyleLightningCSSOptions {
-  features?: SFCStyleLightningCSSFeatures
+export interface LightningCssStyleVisitorOptions {
+  analysis?: LightningCssStyleAnalysis
   id: string
   isProd?: boolean
   scoped?: boolean
   /**
    * `true` when selector scoping already ran as a source rewrite, so the final
    * visitor only needs to handle any remaining selector-level transforms.
-   */
+  */
   selectorsScopedInSource?: boolean
 }
 
-export function createStyleLightningCSSVisitor(
-  options: SFCStyleLightningCSSOptions,
-): SFCStyleLightningCSSVisitor | undefined {
+export function createLightningCssStyleVisitor(
+  options: LightningCssStyleVisitorOptions,
+): LightningCssStyleVisitor | undefined {
   const {
-    features,
+    analysis,
     id,
     scoped = false,
     selectorsScopedInSource = false,
   } = options
   const hasScopedSelectorSpecials =
-    features && features.hasScopedSelectorSpecials !== undefined
-      ? features.hasScopedSelectorSpecials
+    analysis && analysis.hasScopedSelectorSpecials !== undefined
+      ? analysis.hasScopedSelectorSpecials
       : true
-  const keyframes = features ? features.keyframes : undefined
-  const visitor: SFCStyleLightningCSSVisitor = {}
+  const keyframes = analysis ? analysis.keyframes : undefined
+  const visitor: LightningCssStyleVisitor = {}
 
   if (!scoped) {
     return hasVisitorHooks(visitor) ? visitor : undefined
@@ -61,11 +61,11 @@ export function createStyleLightningCSSVisitor(
 
     visitor.Selector = selector =>
       (hasScopedSelectorSpecials
-        ? scopeLightningCssSelectorWithLexer(
+        ? rewriteScopedSelector(
             selector as LightningCssSelector,
             context,
           )
-        : scopeLightningCssSelectorDirect(
+        : rewriteSimpleScopedSelector(
             selector as LightningCssSelector,
             context,
           )) as LightningCssSelector | LightningCssSelector[]
@@ -74,6 +74,6 @@ export function createStyleLightningCSSVisitor(
   return hasVisitorHooks(visitor) ? visitor : undefined
 }
 
-function hasVisitorHooks(visitor: SFCStyleLightningCSSVisitor): boolean {
+function hasVisitorHooks(visitor: LightningCssStyleVisitor): boolean {
   return !!visitor.Function || !!visitor.Rule || !!visitor.Selector
 }

@@ -1,4 +1,4 @@
-import { normalizeEscapedKeyframesName } from '../../features'
+import { normalizeEscapedKeyframesName } from '../../keyframeNames'
 import { findTopLevelSeparatorIndex, splitTopLevelSegments } from './scan'
 
 export function rewriteAnimationNameValue(

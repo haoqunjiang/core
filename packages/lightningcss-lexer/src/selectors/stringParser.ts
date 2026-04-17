@@ -22,7 +22,7 @@ import {
   setParsedSelectorSource,
 } from './shared'
 
-export class StringSelectorArgumentParser {
+export class StringSelectorParser {
   private index = 0
   private readonly endIndex: number
   private readonly sourceContainsComments: boolean
@@ -337,7 +337,7 @@ export class StringSelectorArgumentParser {
         name,
         content,
         selectorContent =>
-          new StringSelectorArgumentParser(
+          new StringSelectorParser(
             selectorContent,
             this.options,
           ).parseSelectorList(),
@@ -699,7 +699,7 @@ export class StringSelectorArgumentParser {
   }
 
   private parseSelectorListRange(start: number, end: number): SelectorList {
-    return new StringSelectorArgumentParser(
+    return new StringSelectorParser(
       this.source,
       this.options,
       start,

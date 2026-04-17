@@ -1,6 +1,6 @@
 import type { Selector, SelectorComponent } from 'lightningcss'
 import { parseSelectorListFromString } from '@vue/lightningcss-lexer'
-import { vueScopedSelectorParserOptions } from '../vueScopedSelectors'
+import { vueScopeParserOptions } from '../scoped/vueScope'
 
 export type NestedScopeContext = 'deep' | 'none' | 'slotted'
 
@@ -29,7 +29,7 @@ export function analyzeSelectorNestingContext(
 ): NestedScopeAnalysis {
   try {
     return collapseNestedScopeContexts(
-      parseSelectorListFromString(prelude, vueScopedSelectorParserOptions).map(
+      parseSelectorListFromString(prelude, vueScopeParserOptions).map(
         selectorContainsDeepContext,
       ),
     )

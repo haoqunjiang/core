@@ -1,10 +1,10 @@
 import type { SelectorList, TokenOrValue } from 'lightningcss'
-import { StringSelectorArgumentParser } from './parseString'
+import { StringSelectorParser } from './stringParser'
 import { parseCompatiblePreludeFragment } from './preludeCompat'
 import { decodeCssEscape } from './identifiers'
 import { stringifySelector, stringifyTokens } from './stringify'
 import type { SelectorParserOptions } from './shared'
-import { TokenSelectorArgumentParser } from './parseTokens'
+import { TokenSelectorParser } from './tokenParser'
 
 /**
  * Parses a selector list from Lightning CSS `TokenOrValue[]`.
@@ -17,10 +17,10 @@ export function parseSelectorListFromTokens(
   options: SelectorParserOptions = {},
 ): SelectorList {
   try {
-    return new TokenSelectorArgumentParser(tokens, options).parseSelectorList()
+    return new TokenSelectorParser(tokens, options).parseSelectorList()
   } catch {
     const source = stringifyTokens(tokens)
-    return new StringSelectorArgumentParser(source, options).parseSelectorList()
+    return new StringSelectorParser(source, options).parseSelectorList()
   }
 }
 
@@ -32,7 +32,7 @@ export function parseSelectorListFromString(
   if (compatiblePrelude) {
     return compatiblePrelude
   }
-  return new StringSelectorArgumentParser(source, options).parseSelectorList()
+  return new StringSelectorParser(source, options).parseSelectorList()
 }
 
 export { stringifySelector, stringifyTokens }

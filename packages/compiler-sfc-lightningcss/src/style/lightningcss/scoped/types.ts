@@ -47,8 +47,3 @@ export interface ExpandedScopedSelector {
   deep: boolean
   selector: Selector
 }
-
-export interface ScopedSelectorRewriteResult {
-  deep: boolean
-  selectors: SelectorList
-}

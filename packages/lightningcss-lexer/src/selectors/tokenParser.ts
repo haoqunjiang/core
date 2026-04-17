@@ -6,7 +6,7 @@ import type {
   Token,
   TokenOrValue,
 } from 'lightningcss'
-import { StringSelectorArgumentParser } from './parseString'
+import { StringSelectorParser } from './stringParser'
 import { parseStandardPseudoClassFunction } from './pseudoFunctions'
 import { stringifyTokens } from './stringify'
 import {
@@ -24,7 +24,7 @@ import {
   isCombinator,
 } from './shared'
 
-export class TokenSelectorArgumentParser {
+export class TokenSelectorParser {
   private index = 0
 
   constructor(
@@ -277,7 +277,7 @@ export class TokenSelectorArgumentParser {
           name,
           this.readFunctionContentSource(),
           selectorContent =>
-            new StringSelectorArgumentParser(
+            new StringSelectorParser(
               selectorContent,
               this.options,
             ).parseSelectorList(),

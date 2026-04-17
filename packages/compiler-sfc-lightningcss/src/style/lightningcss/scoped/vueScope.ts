@@ -14,7 +14,7 @@ const vueScopeCarrierAliases = {
   slotted: ['slotted', 'v-slotted'],
 } as const
 
-export const vueScopedSelectorCarrierFunctionNames: ReadonlySet<string> =
+export const vueScopeCarrierFunctionNames: ReadonlySet<string> =
   new Set(Object.values(vueScopeCarrierAliases).flat())
 
 const vueScopeCarrierKindByName: ReadonlyMap<string, VueScopeCarrierKind> =
@@ -24,13 +24,13 @@ const vueScopeCarrierKindByName: ReadonlyMap<string, VueScopeCarrierKind> =
     ),
   )
 
-export const vueScopedSelectorParserOptions: SelectorParserOptions = {
+export const vueScopeParserOptions: SelectorParserOptions = {
   // Vue scope carriers use function syntax and carry selector-list arguments,
   // so the lightweight parser should expose them structurally.
-  selectorListFunctionNames: vueScopedSelectorCarrierFunctionNames,
+  selectorListFunctionNames: vueScopeCarrierFunctionNames,
 }
 
-export function getVueScopedSelectorCarrierKind(
+export function getVueScopeCarrierKind(
   name: string,
 ): VueScopeCarrierKind | null {
   return vueScopeCarrierKindByName.get(name) ?? null

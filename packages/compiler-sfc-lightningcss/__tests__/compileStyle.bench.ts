@@ -3,11 +3,11 @@ import { Features, transform } from 'lightningcss'
 import { compileStyle as _compileStyle } from '@vue/compiler-sfc'
 import {
   compileStyle as _compileStyleWithLightningCss,
-  createStyleLightningCSSVisitor,
+  createLightningCssStyleVisitor,
 } from '../src'
-import { analyzeStyleLightningCSSFeatures } from '../src/style/lightningcss/features'
-import { normalizeNestedStyleBlocks } from '../src/style/lightningcss/nesting'
-import { scopeLightningCssSource } from '../src/style/lightningcss/sourceScope'
+import { analyzeLightningCssStyle } from '../src/style/lightningcss/analysis'
+import { normalizeNestedStyleBlocks } from '../src/style/lightningcss/nesting/normalize'
+import { scopeLightningCssSource } from '../src/style/lightningcss/scoped/source'
 
 const compileStyle = _compileStyle
 const compileStyleWithLightningCss = _compileStyleWithLightningCss
@@ -87,8 +87,8 @@ compileWith(compileStyleWithLightningCss, '.warmup { color: red; }')
 transformWithLightningCss('.warmup { color: red; }')
 transformWithLightningCss('.warmup { color: red; }', { visitor: {} })
 transformWithLightningCss('.warmup { color: red; }', {
-  visitor: createStyleLightningCSSVisitor({
-    features: analyzeStyleLightningCSSFeatures(
+  visitor: createLightningCssStyleVisitor({
+    analysis: analyzeLightningCssStyle(
       '.warmup { color: red; }',
       'data-v-bench',
     ),
@@ -97,8 +97,8 @@ transformWithLightningCss('.warmup { color: red; }', {
   }),
 })
 transformWithLightningCss('.warmup { color: red; }', {
-  visitor: createStyleLightningCSSVisitor({
-    features: analyzeStyleLightningCSSFeatures(
+  visitor: createLightningCssStyleVisitor({
+    analysis: analyzeLightningCssStyle(
       '.warmup { color: red; }',
       'data-v-bench',
     ),
@@ -148,8 +148,8 @@ describe('lightningcss transform breakdown', () => {
 
   bench('transform + scoped visitor simple selectors', () => {
     transformWithLightningCss(simpleScopedSource, {
-      visitor: createStyleLightningCSSVisitor({
-        features: analyzeStyleLightningCSSFeatures(
+      visitor: createLightningCssStyleVisitor({
+        analysis: analyzeLightningCssStyle(
           simpleScopedSource,
           'data-v-bench',
         ),
@@ -161,16 +161,16 @@ describe('lightningcss transform breakdown', () => {
 })
 
 describe('lightningcss source preparation breakdown', () => {
-  bench('analyze features simple selectors', () => {
-    analyzeStyleLightningCSSFeatures(simpleScopedSource, 'data-v-bench')
+  bench('analyze style simple selectors', () => {
+    analyzeLightningCssStyle(simpleScopedSource, 'data-v-bench')
   })
 
   bench('scope source simple selectors', () => {
     scopeLightningCssSource(simpleScopedSource, 'data-v-bench', false)
   })
 
-  bench('analyze features vue selector functions', () => {
-    analyzeStyleLightningCSSFeatures(vueScopedFunctionSource, 'data-v-bench')
+  bench('analyze style vue selector functions', () => {
+    analyzeLightningCssStyle(vueScopedFunctionSource, 'data-v-bench')
   })
 
   bench('scope source vue selector functions', () => {
@@ -189,8 +189,8 @@ describe('lightningcss transform breakdown with Vue selector functions', () => {
 
   bench('transform + scoped visitor vue selector functions', () => {
     transformWithLightningCss(vueScopedFunctionSource, {
-      visitor: createStyleLightningCSSVisitor({
-        features: analyzeStyleLightningCSSFeatures(
+      visitor: createLightningCssStyleVisitor({
+        analysis: analyzeLightningCssStyle(
           vueScopedFunctionSource,
           'data-v-bench',
         ),
@@ -232,8 +232,8 @@ describe('lightningcss nesting normalization breakdown', () => {
 
   bench('transform + scoped visitor normalized nested selectors', () => {
     transformWithLightningCss(normalizedNestedSource, {
-      visitor: createStyleLightningCSSVisitor({
-        features: analyzeStyleLightningCSSFeatures(
+      visitor: createLightningCssStyleVisitor({
+        analysis: analyzeLightningCssStyle(
           normalizedNestedSource,
           'data-v-bench',
         ),
@@ -252,8 +252,8 @@ describe('lightningcss nesting normalization breakdown', () => {
     'transform + scoped visitor lowered normalized nested selectors',
     () => {
       transformWithLightningCss(loweredNormalizedNestedSource, {
-        visitor: createStyleLightningCSSVisitor({
-          features: analyzeStyleLightningCSSFeatures(
+        visitor: createLightningCssStyleVisitor({
+          analysis: analyzeLightningCssStyle(
             loweredNormalizedNestedSource,
             'data-v-bench',
           ),

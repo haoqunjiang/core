@@ -6,13 +6,11 @@ import {
   walkCssBlockPreludes,
 } from '@vue/lightningcss-lexer'
 import type { RawSourceMap } from '@vue/compiler-core'
-import {
-  appendScopedLightningCssSelectors,
-  createScopedStyleTransformContext,
-} from './scoped'
-import { vueScopedSelectorParserOptions } from './vueScopedSelectors'
 import MagicString from 'magic-string'
 import merge from 'merge-source-map'
+import { createScopedStyleTransformContext } from './context'
+import { appendRewrittenScopedSelectors } from './rewrite'
+import { vueScopeParserOptions } from './vueScope'
 
 export function scopeLightningCssSource(
   source: string,
@@ -25,9 +23,9 @@ export function scopeLightningCssSource(
     tryRewritePreludeDirect: hasScopedSelectorSpecials
       ? undefined
       : prelude => scopeSelectorPrelude(prelude, context.id),
-    parserOptions: vueScopedSelectorParserOptions,
+    parserOptions: vueScopeParserOptions,
     appendRewrittenSelectors: (selector, target) =>
-      appendScopedLightningCssSelectors(selector, context, target),
+      appendRewrittenScopedSelectors(selector, context, target),
   })
 }
 
@@ -62,7 +60,7 @@ export function scopeLightningCssSourceWithMap(
         ? undefined
         : value => scopeSelectorPrelude(value, context.id),
       (selector, target) =>
-        appendScopedLightningCssSelectors(selector, context, target),
+        appendRewrittenScopedSelectors(selector, context, target),
     )
 
     if (rewrittenPrelude === prelude.preludeSource) {
@@ -113,7 +111,7 @@ function rewriteScopedPrelude(
 
   const selectors = parseSelectorListFromString(
     prelude,
-    vueScopedSelectorParserOptions,
+    vueScopeParserOptions,
   )
   const rewrittenSelectors: typeof selectors = []
   for (const selector of selectors) {

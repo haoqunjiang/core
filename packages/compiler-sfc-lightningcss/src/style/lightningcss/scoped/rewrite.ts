@@ -8,11 +8,15 @@ import { applyScopeInjection } from './selectorInject'
 import type {
   ScopeInjectMode,
   ScopedSelectorHelpers,
-  ScopedSelectorRewriteResult,
   ScopedStyleTransformContext,
 } from './types'
 
-export function scopeLightningCssSelectorWithLexer(
+interface ScopedSelectorRewriteResult {
+  deep: boolean
+  selectors: Selector[]
+}
+
+export function rewriteScopedSelector(
   selector: Selector,
   context: ScopedStyleTransformContext,
 ): Selector | Selector[] {
@@ -20,7 +24,11 @@ export function scopeLightningCssSelectorWithLexer(
     return rewriteDirectScopedSelector(selector, context.helpers)
   }
 
-  return rewriteScopedSelector(selector, 'normal', context.helpers).selectors
+  return rewriteExpandedScopedSelector(
+    selector,
+    'normal',
+    context.helpers,
+  ).selectors
 }
 
 /**
@@ -31,7 +39,7 @@ export function scopeLightningCssSelectorWithLexer(
  * smaller `Selector | Selector[]` contract to avoid wrapping the direct path in
  * an extra array on the hot AST visitor path.
  */
-export function appendScopedLightningCssSelectors(
+export function appendRewrittenScopedSelectors(
   selector: Selector,
   context: ScopedStyleTransformContext,
   target: Selector[],
@@ -42,26 +50,22 @@ export function appendScopedLightningCssSelectors(
   }
 
   target.push(
-    ...rewriteScopedSelector(selector, 'normal', context.helpers).selectors,
+    ...rewriteExpandedScopedSelector(
+      selector,
+      'normal',
+      context.helpers,
+    ).selectors,
   )
 }
 
-export function scopeLightningCssSelectorDirect(
+export function rewriteSimpleScopedSelector(
   selector: Selector,
   context: ScopedStyleTransformContext,
 ): Selector {
   return rewriteDirectScopedSelector(selector, context.helpers)
 }
 
-export function rewriteLightningCssScopedSelector(
-  selector: Selector,
-  injectMode: ScopeInjectMode,
-  context: ScopedStyleTransformContext,
-): ScopedSelectorRewriteResult {
-  return rewriteScopedSelector(selector, injectMode, context.helpers)
-}
-
-function rewriteScopedSelector(
+function rewriteExpandedScopedSelector(
   selector: Selector,
   injectMode: ScopeInjectMode,
   helpers: ScopedSelectorHelpers,
