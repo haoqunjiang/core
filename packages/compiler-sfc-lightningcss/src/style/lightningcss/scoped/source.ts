@@ -1,12 +1,9 @@
 import {
-  parseSelectorListFromString,
   rewriteCssSelectorSource,
+  rewriteCssSelectorSourceWithMap,
   scopeSelectorPrelude,
-  stringifySelector,
-  walkCssBlockPreludes,
 } from '@vue/lightningcss-utils'
 import type { RawSourceMap } from '@vue/compiler-core'
-import MagicString from 'magic-string'
 import merge from 'merge-source-map'
 import { createScopedStyleTransformContext } from './context'
 import { appendRewrittenScopedSelectors } from './rewrite'
@@ -42,82 +39,18 @@ export function scopeLightningCssSourceWithMap(
   map?: RawSourceMap,
 ): ScopeLightningCssSourceWithMapResult {
   const context = createScopedStyleTransformContext({ id })
-  const s = new MagicString(source)
-  let changed = false
-
-  walkCssBlockPreludes(source, prelude => {
-    if (
-      !prelude.normalizedPrelude ||
-      prelude.normalizedPrelude.startsWith('@') ||
-      prelude.parentKind === 'keyframes'
-    ) {
-      return
-    }
-
-    const rewrittenPrelude = rewriteScopedPrelude(
-      prelude.preludeSource,
-      hasScopedSelectorSpecials
+  return rewriteCssSelectorSourceWithMap<RawSourceMap>(
+    source,
+    filename,
+    {
+      tryRewritePreludeDirect: hasScopedSelectorSpecials
         ? undefined
-        : value => scopeSelectorPrelude(value, context.id),
-      (selector, target) =>
+        : prelude => scopeSelectorPrelude(prelude, context.id),
+      parserOptions: vueScopeParserOptions,
+      appendRewrittenSelectors: (selector, target) =>
         appendRewrittenScopedSelectors(selector, context, target),
-    )
-
-    if (rewrittenPrelude === prelude.preludeSource) {
-      return
-    }
-
-    s.overwrite(prelude.start, prelude.end, rewrittenPrelude)
-    changed = true
-  })
-
-  if (!changed) {
-    return {
-      code: source,
-      map,
-    }
-  }
-
-  const nextMap = s.generateMap({
-    source: filename,
-    includeContent: true,
-    hires: true,
-  })
-
-  return {
-    code: s.toString(),
-    map: map
-      ? (merge(map, nextMap) as RawSourceMap)
-      : (JSON.parse(nextMap.toString()) as RawSourceMap),
-  }
-}
-
-function rewriteScopedPrelude(
-  prelude: string,
-  tryRewritePreludeDirect:
-    | ((prelude: string) => string | undefined)
-    | undefined,
-  appendRewrittenSelectors: (
-    selector: ReturnType<typeof parseSelectorListFromString>[number],
-    target: ReturnType<typeof parseSelectorListFromString>,
-  ) => void,
-): string {
-  if (tryRewritePreludeDirect) {
-    const rewrittenPrelude = tryRewritePreludeDirect(prelude)
-    if (rewrittenPrelude != null) {
-      return rewrittenPrelude
-    }
-  }
-
-  const selectors = parseSelectorListFromString(
-    prelude,
-    vueScopeParserOptions,
+    },
+    map,
+    (currentMap, nextMap) => merge(currentMap, nextMap) as RawSourceMap,
   )
-  const rewrittenSelectors: typeof selectors = []
-  for (const selector of selectors) {
-    appendRewrittenSelectors(selector, rewrittenSelectors)
-  }
-  return rewrittenSelectors
-    .map(selector => stringifySelector(selector))
-    .join(', ')
 }

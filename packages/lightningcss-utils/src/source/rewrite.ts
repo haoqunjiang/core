@@ -1,4 +1,5 @@
 import type { Selector } from 'lightningcss'
+import MagicString from 'magic-string'
 import { walkCssBlockPreludes } from './preludes'
 import {
   type SelectorParserOptions,
@@ -26,6 +27,16 @@ export interface CssSelectorSourceRewriteOptions {
    */
   appendRewrittenSelectors: (selector: Selector, target: Selector[]) => void
 }
+
+export interface CssSelectorSourceRewriteWithMapResult<TMap extends object> {
+  code: string
+  map: TMap | undefined
+}
+
+export type CssSourceMapMerge<TMap extends object> = (
+  currentMap: TMap,
+  nextMap: object,
+) => TMap
 
 /**
  * Walks CSS source and rewrites only selector preludes, leaving declaration
@@ -71,6 +82,65 @@ export function rewriteCssSelectorSource(
 
   output.push(source.slice(chunkStart))
   return output.join('')
+}
+
+export function rewriteCssSelectorSourceWithMap<TMap extends object = object>(
+  source: string,
+  filename: string,
+  options: CssSelectorSourceRewriteOptions,
+  map?: TMap,
+  mergeMap?: CssSourceMapMerge<TMap>,
+): CssSelectorSourceRewriteWithMapResult<TMap> {
+  const { tryRewritePreludeDirect, parserOptions, appendRewrittenSelectors } =
+    options
+  const s = new MagicString(source)
+  let changed = false
+
+  walkCssBlockPreludes(source, prelude => {
+    if (
+      !prelude.normalizedPrelude ||
+      prelude.normalizedPrelude.startsWith('@') ||
+      prelude.parentKind === 'keyframes'
+    ) {
+      return
+    }
+
+    const rewrittenPrelude = rewriteSelectorPrelude(
+      prelude.preludeSource,
+      tryRewritePreludeDirect,
+      parserOptions,
+      appendRewrittenSelectors,
+    )
+
+    if (rewrittenPrelude === prelude.preludeSource) {
+      return
+    }
+
+    s.overwrite(prelude.start, prelude.end, rewrittenPrelude)
+    changed = true
+  })
+
+  if (!changed) {
+    return {
+      code: source,
+      map,
+    }
+  }
+
+  const nextMap = s.generateMap({
+    source: filename,
+    includeContent: true,
+    hires: true,
+  })
+
+  return {
+    code: s.toString(),
+    map: map
+      ? mergeMap
+        ? mergeMap(map, JSON.parse(nextMap.toString()) as object)
+        : (JSON.parse(nextMap.toString()) as TMap)
+      : (JSON.parse(nextMap.toString()) as TMap),
+  }
 }
 
 function rewriteSelectorPrelude(

@@ -7,12 +7,20 @@ export {
   type SelectorParserOptions,
 } from './selectors'
 export {
+  findLastNonWhitespaceIndex,
+  findTrimmedSourceRange,
   walkCssBlockPreludes,
+  forEachTopLevelTextRange,
+  hasMeaningfulCssText,
   parseCssBlockTree,
   rewriteCssSelectorSource,
+  rewriteCssSelectorSourceWithMap,
+  someTopLevelTextRange,
   scopeSelectorPrelude,
   type CssBlockKind,
   type CssBlockPrelude,
   type CssBlockNode,
+  type CssSourceMapMerge,
   type CssSelectorSourceRewriteOptions,
+  type CssSelectorSourceRewriteWithMapResult,
 } from './source'

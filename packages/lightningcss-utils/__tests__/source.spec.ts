@@ -1,9 +1,14 @@
 import type { Selector } from 'lightningcss'
 import type { CssBlockPrelude } from '../src/source'
 import {
+  findTrimmedSourceRange,
+  forEachTopLevelTextRange,
+  hasMeaningfulCssText,
   parseCssBlockTree,
   rewriteCssSelectorSource,
+  rewriteCssSelectorSourceWithMap,
   scopeSelectorPrelude,
+  someTopLevelTextRange,
   walkCssBlockPreludes,
 } from '../src/source'
 
@@ -108,6 +113,26 @@ describe('source-facing API', () => {
     expect(rewritten).toBe('.foo, .foo{ color: red; }')
   })
 
+  test('rewriteCssSelectorSourceWithMap preserves sourcemap shape when changes occur', () => {
+    const rewritten = rewriteCssSelectorSourceWithMap(
+      '.foo { color: red; }',
+      'test.css',
+      {
+        tryRewritePreludeDirect: prelude =>
+          scopeSelectorPrelude(prelude, 'data-test'),
+        appendRewrittenSelectors: () => {
+          throw new Error('direct path should have handled this fixture')
+        },
+      },
+    )
+
+    expect(rewritten.code).toBe('.foo[data-test]{ color: red; }')
+    expect(rewritten.map).toMatchObject({
+      version: 3,
+      sources: ['test.css'],
+    })
+  })
+
   test('parseCssBlockTree preserves nested block structure', () => {
     const source = `
 .foo {
@@ -132,6 +157,36 @@ describe('source-facing API', () => {
     )
     expect(roots[0].children[0].children[0].normalizedPrelude).toBe('.bar')
     expect(roots[0].children[1].normalizedPrelude).toBe('.baz')
+  })
+
+  test('source segment helpers walk and detect top-level text correctly', () => {
+    const source = `
+.foo {
+  color: red;
+  .bar { color: blue; }
+  /* comment only */
+}
+`
+    const block = parseCssBlockTree(source)[0]
+    const ranges: Array<[number, number]> = []
+    forEachTopLevelTextRange(block, (start, end) => {
+      ranges.push([start, end])
+    })
+
+    expect(ranges).toHaveLength(2)
+    expect(
+      someTopLevelTextRange(block, (start, end) =>
+        hasMeaningfulCssText(source.slice(start, end)),
+      ),
+    ).toBe(true)
+  })
+
+  test('findTrimmedSourceRange trims surrounding whitespace only', () => {
+    expect(findTrimmedSourceRange('  .foo  ', 10)).toEqual({
+      start: 12,
+      end: 16,
+      text: '.foo',
+    })
   })
 
   test('source walkers preserve brace-valued custom property declarations', () => {

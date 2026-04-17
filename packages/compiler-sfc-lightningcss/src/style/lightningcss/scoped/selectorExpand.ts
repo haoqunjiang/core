@@ -14,7 +14,7 @@ import {
   isDescendantCombinator,
 } from './context'
 import { isScopeContainer, isSelectorContainer } from './selectorDirect'
-import { applyScopeInjection } from './selectorInject'
+import { placeScopeAttributes } from './selectorInject'
 import type {
   ExpandedScopedSelector,
   PseudoClassSelector,
@@ -63,7 +63,7 @@ export function canUseDirectScopeRewrite(selector: Selector): boolean {
   return true
 }
 
-export function expandScopedSelectorSpecials(
+export function lowerScopeCarriers(
   selector: Selector,
   helpers: ScopedSelectorHelpers,
 ): ExpandedScopedSelector[] {
@@ -129,7 +129,7 @@ function expandGlobalCarrier(
 ): ExpandedSelectorStates {
   const expanded: ExpandedSelectorStates = []
   for (const innerSelector of carrier.selectors) {
-    const innerResults = expandScopedSelectorSpecials(innerSelector, helpers)
+    const innerResults = lowerScopeCarriers(innerSelector, helpers)
     for (const result of innerResults) {
       expanded.push({
         deep: result.deep,
@@ -151,10 +151,10 @@ function expandSlottedCarrier(
   // again, so we prepend the no-inject marker afterward.
   const slotScopedInnerSelectors: ExpandedSelectorStates = []
   for (const innerSelector of carrier.selectors) {
-    const innerResults = expandScopedSelectorSpecials(innerSelector, helpers)
+    const innerResults = lowerScopeCarriers(innerSelector, helpers)
     for (const result of innerResults) {
       slotScopedInnerSelectors.push(
-        applyScopeInjection(result, 'slot', helpers),
+        placeScopeAttributes(result, 'slot', helpers),
       )
     }
   }
@@ -183,7 +183,7 @@ function expandDeepCarrier(
   const expanded: ExpandedSelectorStates = []
   for (const state of results) {
     for (const innerSelector of carrier.selectors) {
-      const innerResults = expandScopedSelectorSpecials(innerSelector, helpers)
+      const innerResults = lowerScopeCarriers(innerSelector, helpers)
       for (const result of innerResults) {
         expanded.push({
           deep: true,
@@ -235,7 +235,7 @@ function appendSelectorContainer(
   let nestedDeep = false
   const nestedSelectors: SelectorList = []
   for (const nestedSelector of component.selectors) {
-    const nestedResults = expandScopedSelectorSpecials(nestedSelector, helpers)
+    const nestedResults = lowerScopeCarriers(nestedSelector, helpers)
     for (const result of nestedResults) {
       nestedDeep ||= result.deep
       nestedSelectors.push(result.selector)

@@ -1,5 +1,6 @@
 import type { RawSourceMap } from '@vue/compiler-core'
 import { type CssBlockNode, parseCssBlockTree } from '@vue/lightningcss-utils'
+import { extend } from '@vue/shared'
 import MagicString from 'magic-string'
 import merge from 'merge-source-map'
 import { warnOnce } from '../../../warn'
@@ -34,6 +35,27 @@ interface StyleRuleBehavior {
   inheritedContextForChildren: NestedScopeContext
   shouldDisableCurrentRuleInjection: boolean
 }
+
+interface BlockDecorationPlan {
+  declarationWrapperPrelude: string | null
+  disableCurrentRuleInjection: boolean
+}
+
+interface ChildNormalizationPlan {
+  atRuleState: NormalizeBlockState
+  hoistAtRulesToParentEnd?: number
+  styleState: NormalizeBlockState
+}
+
+interface StyleRuleNormalizationPlan
+  extends BlockDecorationPlan,
+    ChildNormalizationPlan {
+  warningMessage: string | null
+}
+
+interface AtRuleNormalizationPlan
+  extends BlockDecorationPlan,
+    ChildNormalizationPlan {}
 
 export function normalizeNestedStyleBlocks(
   source: string,
@@ -115,62 +137,14 @@ function normalizeStyleRuleBlock(
   source: string,
   state: NormalizeBlockState,
 ): boolean {
-  const behavior = analyzeStyleRuleBehavior(block, state)
-
-  if (behavior.hasMixedBranches) {
-    warnOnce(
-      'Mixed selector branches that combine Vue deep/slotted carriers with ordinary local branches under nested rules are handled conservatively. Descendants stay locally scoped; split the selector list into separate rules for precise behavior.',
-    )
-  }
-
-  let changed = false
-
-  // Context-only parent rules should not receive the normal scope attribute
-  // themselves. They only provide nesting context for the explicit `& { ... }`
-  // wrapper blocks that we synthesize below.
-  if (behavior.shouldDisableCurrentRuleInjection) {
-    changed = wrapPreludeInNoInjectCarrier(block, s) || changed
-  }
-
-  if (behavior.declarationWrapperPrelude) {
-    changed =
-      wrapTopLevelTextSegments(
-        block,
-        s,
-        source,
-        behavior.declarationWrapperPrelude,
-      ) ||
-      changed
-  }
-
-  const atRuleState: NormalizeBlockState = {
-    // Conditional wrappers like `@media` should not change whether the nested
-    // subtree is still in deep/slot context. They only guard when the nested
-    // selector applies.
-    inheritedContext: behavior.inheritedContextForChildren,
-    atRuleDeclarationWrapper: behavior.declarationWrapperPrelude,
-  }
-
-  changed =
-    normalizeChildBlocks(
-      block,
-      s,
-      source,
-      {
-        inheritedContext: behavior.inheritedContextForChildren,
-        atRuleDeclarationWrapper: null,
-      },
-      atRuleState,
-      block.end,
-    ) || changed
-
-  return changed
+  const plan = planStyleRuleNormalization(block, state)
+  return applyStyleRuleNormalizationPlan(block, s, source, plan)
 }
 
-function analyzeStyleRuleBehavior(
+function planStyleRuleNormalization(
   block: CssBlockNode,
   state: NormalizeBlockState,
-): StyleRuleBehavior {
+): StyleRuleNormalizationPlan {
   const ownContextAnalysis = analyzeSelectorNestingContext(
     block.normalizedPrelude,
   )
@@ -186,15 +160,30 @@ function analyzeStyleRuleBehavior(
       : '&'
     : null
 
-  return {
+  const behavior: StyleRuleBehavior = {
     declarationWrapperPrelude,
-    hasMixedBranches: hasDirectNestedStyleRules && ownContextAnalysis.hasMixedBranches,
+    hasMixedBranches:
+      hasDirectNestedStyleRules && ownContextAnalysis.hasMixedBranches,
     inheritedContextForChildren: inheritsContext
       ? state.inheritedContext
       : ownContext,
     shouldDisableCurrentRuleInjection:
       inheritsContext || shouldWrapDeclarations,
   }
+
+  return extend(
+    {
+      warningMessage: behavior.hasMixedBranches
+        ? 'Mixed selector branches that combine Vue deep/slotted carriers with ordinary local branches under nested rules are handled conservatively. Descendants stay locally scoped; split the selector list into separate rules for precise behavior.'
+        : null,
+    },
+    createBlockDecorationPlan(behavior),
+    createChildNormalizationPlan(
+      behavior.inheritedContextForChildren,
+      behavior.declarationWrapperPrelude,
+      block.end,
+    ),
+  )
 }
 
 function shouldUseNoInjectDeclarationWrapper(
@@ -210,36 +199,29 @@ function normalizeAtRuleBlock(
   source: string,
   state: NormalizeBlockState,
 ): boolean {
-  let changed = false
+  const plan = planAtRuleNormalization(block, state)
+  return applyAtRuleNormalizationPlan(block, s, source, plan)
+}
+
+function planAtRuleNormalization(
+  block: CssBlockNode,
+  state: NormalizeBlockState,
+): AtRuleNormalizationPlan {
   const propagatedDeclarationWrapper = getPropagatedDeclarationWrapper(
     block.normalizedPrelude,
     state.atRuleDeclarationWrapper,
   )
 
-  if (propagatedDeclarationWrapper) {
-    changed =
-      wrapTopLevelTextSegments(block, s, source, propagatedDeclarationWrapper) ||
-      changed
-  }
-
-  const childState: NormalizeBlockState = {
-    inheritedContext: state.inheritedContext,
-    atRuleDeclarationWrapper: propagatedDeclarationWrapper,
-  }
-
-  changed =
-    normalizeChildBlocks(
-      block,
-      s,
-      source,
-      {
-        inheritedContext: childState.inheritedContext,
-        atRuleDeclarationWrapper: null,
-      },
-      childState,
-    ) || changed
-
-  return changed
+  return extend(
+    {
+      declarationWrapperPrelude: propagatedDeclarationWrapper,
+      disableCurrentRuleInjection: false,
+    },
+    createChildNormalizationPlan(
+      state.inheritedContext,
+      propagatedDeclarationWrapper,
+    ),
+  )
 }
 
 function normalizeChildBlocks(
@@ -271,6 +253,108 @@ function normalizeChildBlocks(
         source,
         child.blockKind === 'style' ? styleState : atRuleState,
       ) || changed
+  }
+
+  return changed
+}
+
+function createBlockDecorationPlan(
+  behavior: StyleRuleBehavior,
+): BlockDecorationPlan {
+  return {
+    declarationWrapperPrelude: behavior.declarationWrapperPrelude,
+    disableCurrentRuleInjection: behavior.shouldDisableCurrentRuleInjection,
+  }
+}
+
+function createChildNormalizationPlan(
+  inheritedContext: NestedScopeContext,
+  declarationWrapperPrelude: string | null,
+  hoistAtRulesToParentEnd?: number,
+): ChildNormalizationPlan {
+  return {
+    atRuleState: {
+      // Conditional wrappers like `@media` should not change whether the
+      // nested subtree is still in deep/slot context. They only guard when the
+      // nested selector applies.
+      inheritedContext,
+      atRuleDeclarationWrapper: declarationWrapperPrelude,
+    },
+    hoistAtRulesToParentEnd,
+    styleState: {
+      inheritedContext,
+      atRuleDeclarationWrapper: null,
+    },
+  }
+}
+
+function applyStyleRuleNormalizationPlan(
+  block: CssBlockNode,
+  s: MagicString,
+  source: string,
+  plan: StyleRuleNormalizationPlan,
+): boolean {
+  if (plan.warningMessage) {
+    warnOnce(plan.warningMessage)
+  }
+
+  let changed = applyBlockDecorationPlan(block, s, source, plan)
+  changed =
+    normalizeChildBlocks(
+      block,
+      s,
+      source,
+      plan.styleState,
+      plan.atRuleState,
+      plan.hoistAtRulesToParentEnd,
+    ) || changed
+
+  return changed
+}
+
+function applyAtRuleNormalizationPlan(
+  block: CssBlockNode,
+  s: MagicString,
+  source: string,
+  plan: AtRuleNormalizationPlan,
+): boolean {
+  let changed = applyBlockDecorationPlan(block, s, source, plan)
+  changed =
+    normalizeChildBlocks(
+      block,
+      s,
+      source,
+      plan.styleState,
+      plan.atRuleState,
+    ) || changed
+
+  return changed
+}
+
+function applyBlockDecorationPlan(
+  block: CssBlockNode,
+  s: MagicString,
+  source: string,
+  plan: BlockDecorationPlan,
+): boolean {
+  let changed = false
+
+  // Context-only parent rules should not receive the normal scope attribute
+  // themselves. They only provide nesting context for the explicit `& { ... }`
+  // wrapper blocks that we synthesize below.
+  if (plan.disableCurrentRuleInjection) {
+    changed = wrapPreludeInNoInjectCarrier(block, s) || changed
+  }
+
+  if (plan.declarationWrapperPrelude) {
+    changed =
+      wrapTopLevelTextSegments(
+        block,
+        s,
+        source,
+        plan.declarationWrapperPrelude,
+      ) ||
+      changed
   }
 
   return changed

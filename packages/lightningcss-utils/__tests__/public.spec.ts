@@ -26,8 +26,19 @@ describe('public root entrypoint', () => {
   test('re-exports the source-facing API', () => {
     expect(lexer.walkCssBlockPreludes).toBe(source.walkCssBlockPreludes)
     expect(lexer.rewriteCssSelectorSource).toBe(source.rewriteCssSelectorSource)
+    expect(lexer.rewriteCssSelectorSourceWithMap).toBe(
+      source.rewriteCssSelectorSourceWithMap,
+    )
     expect(lexer.parseCssBlockTree).toBe(source.parseCssBlockTree)
     expect(lexer.scopeSelectorPrelude).toBe(source.scopeSelectorPrelude)
+    expect(lexer.forEachTopLevelTextRange).toBe(
+      source.forEachTopLevelTextRange,
+    )
+    expect(lexer.someTopLevelTextRange).toBe(
+      source.someTopLevelTextRange,
+    )
+    expect(lexer.findTrimmedSourceRange).toBe(source.findTrimmedSourceRange)
+    expect(lexer.hasMeaningfulCssText).toBe(source.hasMeaningfulCssText)
   })
 
   test('supports selector parsing and stringifying through the root entrypoint', () => {

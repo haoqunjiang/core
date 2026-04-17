@@ -13,7 +13,7 @@ import type {
   SelectorContainerSelector,
 } from './types'
 
-export function applyScopeInjection(
+export function placeScopeAttributes(
   result: ExpandedScopedSelector,
   injectMode: ScopeInjectMode,
   helpers: ScopedSelectorHelpers,
@@ -49,7 +49,7 @@ export function applyScopeInjection(
 
   return {
     deep: result.deep,
-    selector: cleanupInternalSelector(selector),
+    selector,
   }
 }
 
@@ -63,7 +63,7 @@ function injectScopeIntoContainer(
   let nestedDeep = deep
   const container = selector[anchorIndex] as SelectorContainerSelector
   const nestedSelectors = container.selectors.map(nestedSelector => {
-    const nestedResult = applyScopeInjection(
+    const nestedResult = placeScopeAttributes(
       {
         deep: false,
         selector: nestedSelector,
@@ -93,7 +93,7 @@ function injectScopeIntoContainer(
 
   return {
     deep: nestedDeep,
-    selector: cleanupInternalSelector(rewrittenSelector),
+    selector: rewrittenSelector,
   }
 }
 
@@ -117,7 +117,7 @@ function removeNoInjectMarkers(selector: Selector): Selector {
   return cleanedSelector || selector
 }
 
-function cleanupInternalSelector(selector: Selector): Selector {
+export function cleanupScopedSelectorMarkers(selector: Selector): Selector {
   const cleanedComponents: Selector = []
   for (const component of selector) {
     if (isDeepMarker(component) || isNoInjectMarker(component)) {
@@ -128,7 +128,7 @@ function cleanupInternalSelector(selector: Selector): Selector {
       cleanedComponents.push(
         extend({}, component, {
           selectors: component.selectors.map(nestedSelector =>
-            cleanupInternalSelector(nestedSelector),
+            cleanupScopedSelectorMarkers(nestedSelector),
           ),
         }) as SelectorContainerSelector,
       )

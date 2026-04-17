@@ -6,5 +6,19 @@ export {
 export { scopeSelectorPrelude } from './scopePrelude'
 export type { CssBlockNode } from './blockTree'
 export { parseCssBlockTree } from './blockTree'
-export type { CssSelectorSourceRewriteOptions } from './rewrite'
-export { rewriteCssSelectorSource } from './rewrite'
+export {
+  findLastNonWhitespaceIndex,
+  findTrimmedSourceRange,
+  forEachTopLevelTextRange,
+  hasMeaningfulCssText,
+  someTopLevelTextRange,
+} from './segments'
+export type {
+  CssSourceMapMerge,
+  CssSelectorSourceRewriteOptions,
+  CssSelectorSourceRewriteWithMapResult,
+} from './rewrite'
+export {
+  rewriteCssSelectorSource,
+  rewriteCssSelectorSourceWithMap,
+} from './rewrite'

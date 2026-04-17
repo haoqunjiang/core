@@ -39,6 +39,30 @@ type CSSModulesOptions = NonNullable<
   SFCAsyncStyleCompileOptions['modulesOptions']
 >
 
+interface StyleCompileContext {
+  filename: string
+  id: string
+  isProd: boolean
+  modules: boolean
+  modulesOptions: CSSModulesOptions
+  scoped: boolean
+  shortId: string
+  sourceMap: boolean
+}
+
+interface StyleCompileState {
+  analysis: ReturnType<typeof analyzeLightningCssStyle>
+  dependencies: Set<string>
+  errors: Error[]
+  inputMap: RawSourceMap | undefined
+  source: string
+}
+
+interface SourceScopingResult {
+  scopedSource: string
+  selectorsScopedInSource: boolean
+}
+
 /**
  * Compiler-SFC-compatible style compiler backed by the Lightning CSS style
  * pipeline.
@@ -85,172 +109,289 @@ function compileStyleWithLightningCssImpl(
     )
   }
 
-  const {
-    filename,
-    id,
-    scoped = false,
-    isProd = false,
-    preprocessLang,
-    postcssOptions,
-  } = options
-  const modules = !!('modules' in options && options.modules)
-  const modulesOptions =
-    'modulesOptions' in options ? options.modulesOptions || {} : {}
-  const shortId = id.replace(/^data-v-/, '')
+  const context = createStyleCompileContext(options)
+  const state = createStyleCompileState(options, context)
+
+  rewriteCssVarsInState(state, context)
+  normalizeNestedStylesInState(state, context)
+
+  try {
+    const lightningcss = loadLightningCss(context.filename)
+    const sourceScoping = computeScopedSource(state, context)
+    const transformOptions = createLightningCssTransformOptions(
+      lightningcss,
+      state,
+      context,
+      sourceScoping,
+    )
+    const result = lightningcss.transform(transformOptions)
+    return finalizeStyleCompileSuccess(result, state, context)
+  } catch (e: any) {
+    state.errors.push(e)
+    return finalizeStyleCompileFailure(state)
+  }
+}
+
+function createStyleCompileContext(
+  options: SFCStyleCompileOptions | SFCAsyncStyleCompileOptions,
+): StyleCompileContext {
   const initialInputMap = options.inMap || options.map
-  const sourceMap = shouldGenerateLightningCssSourceMap(
-    postcssOptions,
-    initialInputMap as RawSourceMap | undefined,
-  )
-  const preprocessor = preprocessLang && processors[preprocessLang]
+
+  return {
+    filename: options.filename,
+    id: options.id,
+    isProd: options.isProd ?? false,
+    modules: !!('modules' in options && options.modules),
+    modulesOptions:
+      'modulesOptions' in options ? options.modulesOptions || {} : {},
+    scoped: options.scoped ?? false,
+    shortId: options.id.replace(/^data-v-/, ''),
+    sourceMap: shouldGenerateLightningCssSourceMap(
+      options.postcssOptions,
+      initialInputMap as RawSourceMap | undefined,
+    ),
+  }
+}
+
+function createStyleCompileState(
+  options: SFCStyleCompileOptions | SFCAsyncStyleCompileOptions,
+  context: StyleCompileContext,
+): StyleCompileState {
+  const initialInputMap = options.inMap || options.map
+  const preprocessor =
+    options.preprocessLang && processors[options.preprocessLang]
   const preProcessedSource =
-    preprocessor && preprocess(options, preprocessor, sourceMap)
-  let inputMap = preProcessedSource ? preProcessedSource.map : initialInputMap
-  let source = preProcessedSource ? preProcessedSource.code : options.source
-
-  if (hasCssVarsBinding(source)) {
-    if (sourceMap) {
-      const rewritten = rewriteCssVarsInStyleSourceWithMap(
-        source,
-        filename,
-        shortId,
-        isProd,
-        inputMap as RawSourceMap | undefined,
-      )
-      source = rewritten.code
-      inputMap = rewritten.map
-    } else {
-      source = rewriteCssVarsInStyleSource(source, shortId, isProd)
-    }
-  }
-
-  let analysis = analyzeLightningCssStyle(source, id)
-
-  const errors: Error[] = []
-  if (preProcessedSource && preProcessedSource.errors.length) {
-    errors.push(...preProcessedSource.errors)
-  }
+    preprocessor && preprocess(options, preprocessor, context.sourceMap)
+  const source = preProcessedSource ? preProcessedSource.code : options.source
 
   const dependencies = new Set(
     preProcessedSource ? preProcessedSource.dependencies : [],
   )
-  dependencies.delete(filename)
+  dependencies.delete(context.filename)
+
+  return {
+    analysis: analyzeLightningCssStyle(source, context.id),
+    dependencies,
+    errors: preProcessedSource ? [...preProcessedSource.errors] : [],
+    inputMap: (preProcessedSource
+      ? preProcessedSource.map
+      : initialInputMap) as RawSourceMap | undefined,
+    source,
+  }
+}
+
+function refreshStyleAnalysis(
+  state: StyleCompileState,
+  context: StyleCompileContext,
+): void {
+  state.analysis = analyzeLightningCssStyle(state.source, context.id)
+}
+
+function rewriteCssVarsInState(
+  state: StyleCompileState,
+  context: StyleCompileContext,
+): void {
+  if (!hasCssVarsBinding(state.source)) {
+    return
+  }
+
+  if (context.sourceMap) {
+    const rewritten = rewriteCssVarsInStyleSourceWithMap(
+      state.source,
+      context.filename,
+      context.shortId,
+      context.isProd,
+      state.inputMap,
+    )
+    state.source = rewritten.code
+    state.inputMap = rewritten.map
+  } else {
+    state.source = rewriteCssVarsInStyleSource(
+      state.source,
+      context.shortId,
+      context.isProd,
+    )
+  }
+
+  refreshStyleAnalysis(state, context)
+}
+
+function normalizeNestedStylesInState(
+  state: StyleCompileState,
+  context: StyleCompileContext,
+): void {
+  if (!context.scoped || !state.analysis.hasNestedStyleRules) {
+    return
+  }
+
+  const normalizedSource = normalizeNestedStyleBlocks(
+    state.source,
+    context.filename,
+    state.inputMap,
+    context.sourceMap,
+  )
+
+  if (!normalizedSource.normalized) {
+    return
+  }
+
+  state.source = normalizedSource.code
+  state.inputMap = normalizedSource.map
+  refreshStyleAnalysis(state, context)
+}
+
+function computeScopedSource(
+  state: StyleCompileState,
+  context: StyleCompileContext,
+): SourceScopingResult {
+  // CSS modules rely on Lightning CSS understanding selectors such as
+  // `:local(...)` and `:global(...)` directly, so the source-level scoped path
+  // is only used when CSS modules are disabled.
+  let selectorsScopedInSource = context.scoped && !context.modules
+  if (!selectorsScopedInSource) {
+    return {
+      scopedSource: state.source,
+      selectorsScopedInSource,
+    }
+  }
 
   try {
-    const { Features, transform } = loadLightningCss(filename)
-    const cssModules = modules
-      ? createLightningCssModulesConfig(modulesOptions)
-      : undefined
-
-    if (scoped && analysis.hasNestedStyleRules) {
-      const normalizedSource = normalizeNestedStyleBlocks(
-        source,
-        filename,
-        inputMap as RawSourceMap | undefined,
-        sourceMap,
+    if (context.sourceMap) {
+      const scopedResult = scopeLightningCssSourceWithMap(
+        state.source,
+        context.filename,
+        context.id,
+        state.analysis.hasScopedSelectorSpecials,
+        state.inputMap,
       )
-      source = normalizedSource.code
-      inputMap = normalizedSource.map
-      analysis = analyzeLightningCssStyle(source, id)
-    }
-
-    let scopedSource = source
-    // CSS modules rely on Lightning CSS understanding selectors such as
-    // `:local(...)` and `:global(...)` directly, so the source-level scoped
-    // path is only used when CSS modules are disabled.
-    let selectorsScopedInSource = scoped && !modules
-    if (selectorsScopedInSource) {
-      try {
-        if (sourceMap) {
-          const scopedResult = scopeLightningCssSourceWithMap(
-            source,
-            filename,
-            id,
-            analysis.hasScopedSelectorSpecials,
-            inputMap as RawSourceMap | undefined,
-          )
-          scopedSource = scopedResult.code
-          inputMap = scopedResult.map
-        } else {
-          scopedSource = scopeLightningCssSource(
-            source,
-            id,
-            analysis.hasScopedSelectorSpecials,
-          )
-        }
-      } catch {
-        selectorsScopedInSource = false
-        scopedSource = source
+      state.inputMap = scopedResult.map
+      return {
+        scopedSource: scopedResult.code,
+        selectorsScopedInSource,
       }
     }
 
-    const transformOptions = extend(
-      {
-        filename,
-        code: encodeCode(scopedSource),
-        sourceMap,
-        inputSourceMap: inputMap ? JSON.stringify(inputMap) : undefined,
-        cssModules,
-        nonStandard: {
-          deepSelectorCombinator: true,
-        },
-        visitor: createLightningCssStyleVisitor({
-          analysis,
-          id,
-          isProd,
-          scoped,
-          selectorsScopedInSource,
-        }),
+    return {
+      scopedSource: scopeLightningCssSource(
+        state.source,
+        context.id,
+        state.analysis.hasScopedSelectorSpecials,
+      ),
+      selectorsScopedInSource,
+    }
+  } catch {
+    selectorsScopedInSource = false
+    return {
+      scopedSource: state.source,
+      selectorsScopedInSource,
+    }
+  }
+}
+
+function createLightningCssTransformOptions(
+  lightningcss: {
+    Features: { Nesting: number }
+    transform: (options: any) => any
+  },
+  state: StyleCompileState,
+  context: StyleCompileContext,
+  sourceScoping: SourceScopingResult,
+) {
+  const cssModules = context.modules
+    ? createLightningCssModulesConfig(context.modulesOptions)
+    : undefined
+
+  return extend(
+    {
+      filename: context.filename,
+      code: encodeCode(sourceScoping.scopedSource),
+      sourceMap: context.sourceMap,
+      inputSourceMap: state.inputMap
+        ? JSON.stringify(state.inputMap)
+        : undefined,
+      cssModules,
+      nonStandard: {
+        deepSelectorCombinator: true,
       },
-      analysis.hasNestedStyleRules ? { include: Features.Nesting } : null,
-    )
+      visitor: createLightningCssStyleVisitor({
+        analysis: state.analysis,
+        id: context.id,
+        isProd: context.isProd,
+        scoped: context.scoped,
+        selectorsScopedInSource: sourceScoping.selectorsScopedInSource,
+      }),
+    },
+    state.analysis.hasNestedStyleRules
+      ? { include: lightningcss.Features.Nesting }
+      : null,
+  )
+}
 
-    const result = transform(transformOptions)
-    let code = decodeCode(result.code)
-    let map = result.map ? JSON.parse(decodeCode(result.map)) : undefined
+function finalizeStyleCompileSuccess(
+  result: any,
+  state: StyleCompileState,
+  context: StyleCompileContext,
+): SFCStyleCompileResults {
+  const postTransform = rewriteAnimationDeclarationsIfNeeded(
+    decodeCode(result.code),
+    result.map ? JSON.parse(decodeCode(result.map)) : undefined,
+    state.analysis,
+    context,
+  )
 
-    if (
-      scoped &&
-      analysis.hasAnimationDeclarations &&
-      Object.keys(analysis.keyframes).length
-    ) {
-      if (sourceMap) {
-        const rewritten = rewriteNormalizedAnimationDeclarationsWithMap(
-          code,
-          filename,
-          analysis.keyframes,
-          map,
-        )
-        code = rewritten.code
-        map = rewritten.map
-      } else {
-        const rewritten = rewriteNormalizedAnimationDeclarations(
-          code,
-          analysis.keyframes,
-        )
-        code = rewritten.code
-      }
-    }
+  return {
+    code: postTransform.code,
+    map: postTransform.map,
+    rawResult: undefined,
+    errors: state.errors,
+    modules: context.modules
+      ? normalizeLightningCssModules(result.exports, context.modulesOptions)
+      : undefined,
+    dependencies: state.dependencies,
+  }
+}
 
+function rewriteAnimationDeclarationsIfNeeded(
+  code: string,
+  map: RawSourceMap | undefined,
+  analysis: ReturnType<typeof analyzeLightningCssStyle>,
+  context: StyleCompileContext,
+): { code: string; map: RawSourceMap | undefined } {
+  if (
+    !context.scoped ||
+    !analysis.hasAnimationDeclarations ||
+    !Object.keys(analysis.keyframes).length
+  ) {
     return {
       code,
       map,
-      rawResult: undefined,
-      errors,
-      modules: modules
-        ? normalizeLightningCssModules(result.exports, modulesOptions)
-        : undefined,
-      dependencies,
     }
-  } catch (e: any) {
-    errors.push(e)
-    return {
-      code: '',
-      map: undefined,
-      rawResult: undefined,
-      errors,
-      dependencies,
-    }
+  }
+
+  if (context.sourceMap) {
+    return rewriteNormalizedAnimationDeclarationsWithMap(
+      code,
+      context.filename,
+      analysis.keyframes,
+      map,
+    )
+  }
+
+  return {
+    code: rewriteNormalizedAnimationDeclarations(code, analysis.keyframes).code,
+    map,
+  }
+}
+
+function finalizeStyleCompileFailure(
+  state: StyleCompileState,
+): SFCStyleCompileResults {
+  return {
+    code: '',
+    map: undefined,
+    rawResult: undefined,
+    errors: state.errors,
+    dependencies: state.dependencies,
   }
 }
 

@@ -1,6 +1,6 @@
 import type { CssBlockNode } from '@vue/lightningcss-utils'
 import type MagicString from 'magic-string'
-import { hasTopLevelTextSegments } from './text'
+import { hasMeaningfulTopLevelText } from './text'
 
 const declarationWrapperAtRuleRE =
   /^@(?:media|supports|container|layer|scope|document|starting-style)\b/i
@@ -33,7 +33,7 @@ export function isDeclarationOnlyAtRuleSubtree(
   }
 
   return (
-    !hasTopLevelTextSegments(block, source) &&
+    !hasMeaningfulTopLevelText(block, source) &&
     block.children.length > 0 &&
     block.children.every(child => isDeclarationOnlyAtRuleSubtree(child, source))
   )
