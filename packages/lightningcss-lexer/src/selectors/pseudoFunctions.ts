@@ -1,4 +1,5 @@
 import type { PseudoClassSelector, Selector } from './shared'
+import { isWhitespace } from './shared'
 
 type ParseSelectorList = (source: string) => Selector[]
 
@@ -202,8 +203,4 @@ function splitTopLevel(source: string, separator: string): string[] {
 
   result.push(source.slice(start))
   return result
-}
-
-function isWhitespace(char: string | undefined): boolean {
-  return !!char && /\s/.test(char)
 }

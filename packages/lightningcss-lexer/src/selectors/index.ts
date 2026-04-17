@@ -1,6 +1,7 @@
 import type { SelectorList, TokenOrValue } from 'lightningcss'
 import { StringSelectorArgumentParser } from './parseString'
 import { parseCompatiblePreludeFragment } from './preludeCompat'
+import { decodeCssEscape } from './identifiers'
 import { stringifySelector, stringifyTokens } from './stringify'
 import type { SelectorParserOptions } from './shared'
 import { TokenSelectorArgumentParser } from './parseTokens'
@@ -35,4 +36,5 @@ export function parseSelectorListFromString(
 }
 
 export { stringifySelector, stringifyTokens }
+export { decodeCssEscape }
 export type { SelectorParserOptions } from './shared'

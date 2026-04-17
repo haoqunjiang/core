@@ -29,23 +29,23 @@ export function wrapTopLevelTextSegments(
   wrapperPrelude: string,
 ): boolean {
   let changed = false
-  let segmentStart = block.bodyStart
-
-  for (const child of block.children) {
-    changed =
-      wrapTextSegment(source, s, segmentStart, child.start, wrapperPrelude) ||
-      changed
-    segmentStart = child.end
-  }
-
-  return (
-    wrapTextSegment(source, s, segmentStart, block.bodyEnd, wrapperPrelude) ||
-    changed
-  )
+  forEachTopLevelTextSegmentRange(block, (start, end) => {
+    changed = wrapTextSegment(source, s, start, end, wrapperPrelude) || changed
+  })
+  return changed
 }
 
 export function createNoInjectAmpPrelude(): string {
   return `:${noInjectCarrierPseudoName}(&)`
+}
+
+export function hasTopLevelTextSegments(
+  block: CssBlockNode,
+  source: string,
+): boolean {
+  return someTopLevelTextSegmentRange(block, (start, end) =>
+    hasMeaningfulCssText(source.slice(start, end)),
+  )
 }
 
 function wrapTextSegment(
@@ -60,7 +60,7 @@ function wrapTextSegment(
   }
 
   const segment = source.slice(start, end)
-  if (!stripCssComments(segment).trim()) {
+  if (!hasMeaningfulCssText(segment)) {
     return false
   }
 
@@ -75,6 +75,36 @@ function wrapTextSegment(
   s.appendLeft(contentStart, `${wrapperPrelude} {`)
   s.appendRight(contentEnd, `}`)
   return true
+}
+
+function forEachTopLevelTextSegmentRange(
+  block: CssBlockNode,
+  visit: (start: number, end: number) => void,
+): void {
+  let segmentStart = block.bodyStart
+
+  for (const child of block.children) {
+    visit(segmentStart, child.start)
+    segmentStart = child.end
+  }
+
+  visit(segmentStart, block.bodyEnd)
+}
+
+function someTopLevelTextSegmentRange(
+  block: CssBlockNode,
+  test: (start: number, end: number) => boolean,
+): boolean {
+  let segmentStart = block.bodyStart
+
+  for (const child of block.children) {
+    if (test(segmentStart, child.start)) {
+      return true
+    }
+    segmentStart = child.end
+  }
+
+  return test(segmentStart, block.bodyEnd)
 }
 
 function findTrimmedRange(
@@ -108,6 +138,10 @@ function findLastNonWhitespaceIndex(source: string): number {
   }
 
   return -1
+}
+
+function hasMeaningfulCssText(source: string): boolean {
+  return !!stripCssComments(source).trim()
 }
 
 function stripCssComments(source: string): string {

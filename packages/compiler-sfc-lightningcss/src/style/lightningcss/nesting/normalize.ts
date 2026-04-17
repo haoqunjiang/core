@@ -12,6 +12,7 @@ import type { NestedScopeContext } from './deepContext'
 import { analyzeSelectorNestingContext } from './deepContext'
 import {
   createNoInjectAmpPrelude,
+  hasTopLevelTextSegments,
   wrapPreludeInNoInjectCarrier,
   wrapTopLevelTextSegments,
 } from './text'
@@ -109,9 +110,19 @@ function normalizeStyleRuleBlock(
     block.normalizedPrelude,
   )
   const ownContext = ownContextAnalysis.context
+  const inheritsContext = state.inheritedContext !== 'none'
   const hasDirectNestedStyleRules = block.children.some(
     child => child.blockKind === 'style',
   )
+  const shouldWrapDeclarations = hasDirectNestedStyleRules && ownContext === 'none'
+  const useNoInjectDeclarationWrapper =
+    shouldWrapDeclarations &&
+    (inheritsContext || preludeIsPureGlobalCarrier(block.normalizedPrelude))
+  const declarationWrapperPrelude = shouldWrapDeclarations
+    ? useNoInjectDeclarationWrapper
+      ? createNoInjectAmpPrelude()
+      : '&'
+    : null
 
   if (hasDirectNestedStyleRules && ownContextAnalysis.hasMixedBranches) {
     warnOnce(
@@ -120,8 +131,7 @@ function normalizeStyleRuleBlock(
   }
 
   const shouldDisableCurrentRuleInjection =
-    state.inheritedContext !== 'none' ||
-    (hasDirectNestedStyleRules && ownContext === 'none')
+    inheritsContext || shouldWrapDeclarations
   let changed = false
 
   // Context-only parent rules should not receive the normal scope attribute
@@ -131,31 +141,20 @@ function normalizeStyleRuleBlock(
     changed = wrapPreludeInNoInjectCarrier(block, s) || changed
   }
 
-  if (hasDirectNestedStyleRules && ownContext === 'none') {
-    const declarationWrapperPrelude =
-      state.inheritedContext !== 'none' ||
-      preludeIsPureGlobalCarrier(block.normalizedPrelude)
-        ? createNoInjectAmpPrelude()
-        : '&'
+  if (declarationWrapperPrelude) {
     changed =
       wrapTopLevelTextSegments(block, s, source, declarationWrapperPrelude) ||
       changed
   }
 
   const childInheritedContext =
-    state.inheritedContext !== 'none' ? state.inheritedContext : ownContext
+    inheritsContext ? state.inheritedContext : ownContext
   const atRuleState: NormalizeBlockState = {
     // Conditional wrappers like `@media` should not change whether the nested
     // subtree is still in deep/slot context. They only guard when the nested
     // selector applies.
     inheritedContext: childInheritedContext,
-    atRuleDeclarationWrapper:
-      hasDirectNestedStyleRules && ownContext === 'none'
-        ? state.inheritedContext !== 'none' ||
-          preludeIsPureGlobalCarrier(block.normalizedPrelude)
-          ? createNoInjectAmpPrelude()
-          : '&'
-        : null,
+    atRuleDeclarationWrapper: declarationWrapperPrelude,
   }
 
   for (const child of block.children) {
@@ -287,19 +286,6 @@ function isDeclarationOnlyAtRuleSubtree(
   )
 }
 
-function hasTopLevelTextSegments(block: CssBlockNode, source: string): boolean {
-  let cursor = block.bodyStart
-
-  for (const child of block.children) {
-    if (stripCssComments(source.slice(cursor, child.start)).trim()) {
-      return true
-    }
-    cursor = child.end
-  }
-
-  return !!stripCssComments(source.slice(cursor, block.bodyEnd)).trim()
-}
-
 function hoistNestedAtRuleBlock(
   block: CssBlockNode,
   parentEnd: number,
@@ -310,8 +296,4 @@ function hoistNestedAtRuleBlock(
   s.remove(block.start, block.end)
   s.appendRight(parentEnd, hoistedSource)
   return true
-}
-
-function stripCssComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, ' ')
 }

@@ -1,4 +1,4 @@
-import { walkCssBlockPreludes } from '@vue/lightningcss-lexer'
+import { decodeCssEscape, walkCssBlockPreludes } from '@vue/lightningcss-lexer'
 import { hasCssVarsBinding } from '../cssVars'
 
 export interface SFCStyleLightningCSSFeatures {
@@ -125,76 +125,4 @@ export function normalizeEscapedKeyframesName(name: string): string {
   }
 
   return normalized
-}
-
-function decodeCssEscape(
-  source: string,
-  start: number,
-): { end: number; value: string } {
-  let index = start + 1
-  if (index >= source.length) {
-    return { end: index, value: '\\' }
-  }
-
-  const first = source[index]
-  if (first === '\r') {
-    index++
-    if (source[index] === '\n') {
-      index++
-    }
-    return { end: index, value: '' }
-  }
-
-  if (first === '\n' || first === '\f') {
-    return { end: index + 1, value: '' }
-  }
-
-  if (isHexDigit(first)) {
-    let hex = first
-    index++
-    while (
-      index < source.length &&
-      hex.length < 6 &&
-      isHexDigit(source[index])
-    ) {
-      hex += source[index]
-      index++
-    }
-    if (
-      source[index] === ' ' ||
-      source[index] === '\t' ||
-      source[index] === '\n' ||
-      source[index] === '\r' ||
-      source[index] === '\f'
-    ) {
-      index++
-    }
-
-    const codePoint = Number.parseInt(hex, 16)
-    return {
-      end: index,
-      value:
-        codePoint === 0 || codePoint > 0x10ffff
-          ? '\uFFFD'
-          : String.fromCodePoint(codePoint),
-    }
-  }
-
-  return {
-    end: index + 1,
-    value: first,
-  }
-}
-
-function isHexDigit(char: string | undefined): char is string {
-  if (!char) {
-    return false
-  }
-
-  const code = char.charCodeAt(0)
-  return (
-    (code >= '0'.charCodeAt(0) && code <= '9'.charCodeAt(0)) ||
-    (code >= 'A'.charCodeAt(0) && code <= 'F'.charCodeAt(0)) ||
-    (code >= 'a'.charCodeAt(0) && code <= 'f'.charCodeAt(0))
-  )
 }

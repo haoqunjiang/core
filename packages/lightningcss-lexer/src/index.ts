@@ -6,6 +6,7 @@ export {
 export {
   parseSelectorListFromString,
   parseSelectorListFromTokens,
+  decodeCssEscape,
   stringifySelector,
   stringifyTokens,
   type SelectorParserOptions,

@@ -1,4 +1,9 @@
 import type { CssBlockKind } from '../blockPrelude'
+import {
+  getCssBlockKind,
+  isCustomPropertyDeclarationPrelude,
+  normalizeBlockPrelude,
+} from '../blockShared'
 
 export interface CssBlockNode {
   blockKind: CssBlockKind
@@ -11,8 +16,6 @@ export interface CssBlockNode {
   preludeSource: string
   start: number
 }
-
-const keyframesPreludeRE = /^@(?:-\w+-)?keyframes\b/i
 
 /**
  * Builds a lightweight block tree from raw CSS source.
@@ -119,10 +122,10 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
     if (current === '{') {
       const preludeSource = source.slice(segmentStart, index)
       const normalizedPrelude = segmentHasComment
-        ? normalizePrelude(preludeSource)
+        ? normalizeBlockPrelude(preludeSource)
         : preludeSource.trim()
       const node: CssBlockNode = {
-        blockKind: getBlockKind(normalizedPrelude),
+        blockKind: getCssBlockKind(normalizedPrelude),
         bodyEnd: -1,
         bodyStart: index + 1,
         children: [],
@@ -162,19 +165,4 @@ export function parseCssBlockTree(source: string): CssBlockNode[] {
   }
 
   return roots
-}
-
-function getBlockKind(prelude: string): CssBlockKind {
-  if (keyframesPreludeRE.test(prelude)) {
-    return 'keyframes'
-  }
-  return prelude.startsWith('@') ? 'at-rule' : 'style'
-}
-
-function normalizePrelude(prelude: string): string {
-  return prelude.replace(/\/\*[\s\S]*?\*\//g, ' ').trim()
-}
-
-function isCustomPropertyDeclarationPrelude(prelude: string): boolean {
-  return normalizePrelude(prelude).startsWith('--')
 }

@@ -1,3 +1,9 @@
+import {
+  getCssBlockKind,
+  isCustomPropertyDeclarationPrelude,
+  normalizeBlockPrelude,
+} from './blockShared'
+
 export type CssBlockKind = 'at-rule' | 'keyframes' | 'style'
 
 export interface CssBlockPrelude {
@@ -8,8 +14,6 @@ export interface CssBlockPrelude {
   preludeSource: string
   start: number
 }
-
-const keyframesPreludeRE = /^@(?:-\w+-)?keyframes\b/i
 
 /**
  * Walks CSS source and reports each block prelude at the point its `{` is
@@ -120,9 +124,9 @@ export function walkCssBlockPreludes(
     if (current === '{') {
       const preludeSource = source.slice(segmentStart, index)
       const normalizedPrelude = segmentHasComment
-        ? normalizePrelude(preludeSource)
+        ? normalizeBlockPrelude(preludeSource)
         : preludeSource.trim()
-      const blockKind = getBlockKind(normalizedPrelude)
+      const blockKind = getCssBlockKind(normalizedPrelude)
 
       visitPrelude({
         blockKind,
@@ -149,19 +153,4 @@ export function walkCssBlockPreludes(
       customPropertyValue = false
     }
   }
-}
-
-function getBlockKind(prelude: string): CssBlockKind {
-  if (keyframesPreludeRE.test(prelude)) {
-    return 'keyframes'
-  }
-  return prelude.startsWith('@') ? 'at-rule' : 'style'
-}
-
-function normalizePrelude(prelude: string): string {
-  return prelude.replace(/\/\*[\s\S]*?\*\//g, ' ').trim()
-}
-
-function isCustomPropertyDeclarationPrelude(prelude: string): boolean {
-  return normalizePrelude(prelude).startsWith('--')
 }
